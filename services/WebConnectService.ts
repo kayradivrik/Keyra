@@ -86,12 +86,10 @@ class WebConnectService {
       // 3. Uçtan uca AES-256-CBC ile şifrele
       const encryptedBase64 = this.encryptPayload(jsonStr, keyHex);
 
-      // 4. Relay üzerinden PC'ye gönder (X-Cache: no ile sunucu kaydı tutulmaz)
+      // 4. Relay üzerinden PC'ye doğrudan mesaj olarak gönder (Dosya eki formatına sokmadan)
       const res = await fetch(`https://ntfy.sh/${sessionId}`, {
         method: 'POST',
         headers: {
-          Filename: 'vault.enc',
-          'X-Cache': 'no',
           Title: 'Keyra Web Sync',
           Priority: 'urgent',
         },

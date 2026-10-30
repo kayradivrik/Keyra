@@ -49,3 +49,4 @@ npx eas-cli build -p android --profile preview
 ## 📄 Lisans
 
 MIT License © 2026 [kayradivrik](https://github.com/kayradivrik)
+

@@ -85,7 +85,7 @@ interface EntryCardProps {
   onOpenDetail: (entry: VaultEntry) => void;
 }
 
-function EntryCardItem({
+const EntryCardItem = React.memo(function EntryCardItem({
   entry,
   onCopyText,
   onOpenDetail,
@@ -154,7 +154,7 @@ function EntryCardItem({
       </TouchableOpacity>
     </TouchableOpacity>
   );
-}
+});
 
 // ==========================================
 // ANA UYGULAMA (App.tsx)
@@ -241,13 +241,17 @@ export default function App() {
   }, []);
 
   const refreshBiometricState = useCallback(async (vaultFile?: string) => {
-    const supported = await kdbxService.isBiometricSupported();
-    setBiometricSupported(supported);
-    if (supported) {
-      const enabled = await kdbxService.isBiometricEnabledForVault(vaultFile);
-      setBiometricEnabledForActive(enabled);
-      setSaveBiometricOnAuth(enabled);
-    } else {
+    try {
+      const [supported, enabled] = await Promise.all([
+        kdbxService.isBiometricSupported(),
+        kdbxService.isBiometricEnabledForVault(vaultFile),
+      ]);
+      setBiometricSupported(supported);
+      const isAvailable = Boolean(supported && enabled);
+      setBiometricEnabledForActive(isAvailable);
+      setSaveBiometricOnAuth(isAvailable);
+    } catch {
+      setBiometricSupported(false);
       setBiometricEnabledForActive(false);
       setSaveBiometricOnAuth(false);
     }
@@ -341,7 +345,7 @@ export default function App() {
   }, [vaultState.isUnlocked, autoLockOnBackground, handleLock]);
 
   // 30 Saniyede Otomatik Temizlenen Pano Kopyalama Fonksiyonu
-  const handleCopyText = async (value: string, label: string) => {
+  const handleCopyText = useCallback(async (value: string, label: string) => {
     await Clipboard.setStringAsync(value);
     showToast(`${label} kopyalandı (30sn sonra silinir)`);
 
@@ -357,7 +361,13 @@ export default function App() {
       }
       clipboardTimerRef.current = null;
     }, CLIPBOARD_CLEAR_MS);
-  };
+  }, [showToast]);
+
+  const handleOpenDetail = useCallback((target: VaultEntry) => {
+    setSelectedEntry(target);
+    setDetailPasswordVisible(false);
+    setDetailModalOpen(true);
+  }, []);
 
   // URL'yi Tarayıcıda Açma
   const handleOpenUrl = async (rawUrl: string) => {
@@ -702,71 +712,76 @@ export default function App() {
     setAddModalOpen(true);
   };
 
-  // Kayıt Ekle veya Güncelle (addEntry / updateEntry)
+  // Kayıt Ekle veya Güncelle (addEntry / updateEntry) - Sıfır Gecikmeli Arayüz
   const handleSaveEntry = async () => {
-    if (!newTitle.trim() || !newPassword.trim()) {
+    const cleanTitle = newTitle.trim();
+    const cleanPass = newPassword.trim();
+    if (!cleanTitle || !cleanPass) {
       Alert.alert('Eksik Alan', 'Lütfen Başlık ve Şifre alanlarını doldurun.');
       return;
     }
 
-    try {
-      setIsSaving(true);
-      if (editingEntryId) {
-        const updated = await kdbxService.updateEntry(editingEntryId, {
-          title: newTitle.trim(),
-          username: newUsername.trim(),
-          password: newPassword,
-          url: newUrl.trim() || undefined,
-          notes: newNotes.trim() || undefined,
-          category: newCategory,
-          monogram: deriveMonogram(newTitle.trim()),
-        });
+    const payload = {
+      title: cleanTitle,
+      username: newUsername.trim(),
+      password: newPassword,
+      url: newUrl.trim() || undefined,
+      notes: newNotes.trim() || undefined,
+      category: newCategory,
+      monogram: deriveMonogram(cleanTitle),
+    };
 
-        setVaultState((prev) => ({
-          ...prev,
-          entries: prev.entries.map((item) =>
-            item.id === editingEntryId ? updated : item
-          ),
-        }));
-        setSelectedEntry(updated);
-        showToast('Kayıt güncellendi');
-      } else {
-        const created = await kdbxService.addEntry({
-          title: newTitle.trim(),
-          username: newUsername.trim(),
-          password: newPassword,
-          url: newUrl.trim() || undefined,
-          notes: newNotes.trim() || undefined,
-          category: newCategory,
-          monogram: deriveMonogram(newTitle.trim()),
-        });
+    const targetEditId = editingEntryId;
 
+    // Modalı ANINDA kapatarak kullanıcıyı bekletme hissini 0'a indiriyoruz
+    setAddModalOpen(false);
+    setEditingEntryId(null);
+    setNewTitle('');
+    setNewUsername('');
+    setNewPassword('');
+    setNewUrl('');
+    setNewNotes('');
+
+    if (targetEditId) {
+      const optimisticEntry: VaultEntry = {
+        ...payload,
+        id: targetEditId,
+        updatedAt: new Date(),
+      };
+      setVaultState((prev) => ({
+        ...prev,
+        entries: prev.entries.map((item) =>
+          item.id === targetEditId ? optimisticEntry : item
+        ),
+      }));
+      setSelectedEntry(optimisticEntry);
+      showToast('Kayıt güncellendi');
+
+      try {
+        await kdbxService.updateEntry(targetEditId, payload);
+      } catch {
+        showToast('Hata: Değişiklik diske yazılamadı');
+      }
+    } else {
+      showToast('Kayıt kaydediliyor...');
+      try {
+        const created = await kdbxService.addEntry(payload);
         setVaultState((prev) => ({
           ...prev,
           entries: [created, ...prev.entries],
         }));
         setSelectedEntry(created);
         showToast('Kayıt eklendi');
+      } catch (err: unknown) {
+        Alert.alert(
+          'Hata',
+          err instanceof Error ? err.message : 'Kayıt kaydedilemedi.'
+        );
       }
-
-      setAddModalOpen(false);
-      setEditingEntryId(null);
-      setNewTitle('');
-      setNewUsername('');
-      setNewPassword('');
-      setNewUrl('');
-      setNewNotes('');
-    } catch (err: unknown) {
-      Alert.alert(
-        'Hata',
-        err instanceof Error ? err.message : 'Kayıt kaydedilemedi.'
-      );
-    } finally {
-      setIsSaving(false);
     }
   };
 
-  // Kayıt Sil (deleteEntry)
+  // Kayıt Sil (deleteEntry) - Sıfır Gecikmeli Arayüz
   const handleDeleteEntry = (entry: VaultEntry) => {
     Alert.alert(
       'Kaydı Sil',
@@ -777,14 +792,15 @@ export default function App() {
           text: 'Sil',
           style: 'destructive',
           onPress: async () => {
+            setDetailModalOpen(false);
+            setVaultState((prev) => ({
+              ...prev,
+              entries: prev.entries.filter((e) => e.id !== entry.id),
+            }));
+            showToast(`"${entry.title}" silindi`);
+
             try {
               await kdbxService.deleteEntry(entry.id);
-              setVaultState((prev) => ({
-                ...prev,
-                entries: prev.entries.filter((e) => e.id !== entry.id),
-              }));
-              setDetailModalOpen(false);
-              showToast(`"${entry.title}" silindi`);
             } catch (err: unknown) {
               Alert.alert(
                 'Hata',
@@ -1457,15 +1473,15 @@ export default function App() {
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.entriesListContent}
+                initialNumToRender={10}
+                maxToRenderPerBatch={8}
+                windowSize={5}
+                removeClippedSubviews={Platform.OS === 'android'}
                 renderItem={({ item }) => (
                   <EntryCardItem
                     entry={item}
                     onCopyText={handleCopyText}
-                    onOpenDetail={(target) => {
-                      setSelectedEntry(target);
-                      setDetailPasswordVisible(false);
-                      setDetailModalOpen(true);
-                    }}
+                    onOpenDetail={handleOpenDetail}
                   />
                 )}
                 ListEmptyComponent={

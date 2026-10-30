@@ -290,70 +290,52 @@ export class KdbxService {
 
     if (FileSystem.documentDirectory) {
       try {
-        const info = await FileSystem.getInfoAsync(profilePath);
-        if (info.exists) {
-          const rawJson = await FileSystem.readAsStringAsync(profilePath);
-          const parsed = JSON.parse(rawJson) as Partial<VaultProfile>;
-          if (typeof parsed.ownerName === 'string') {
-            savedOwner = parsed.ownerName;
-          }
-          if (
-            typeof parsed.activeVaultFile === 'string' &&
-            parsed.activeVaultFile.trim()
-          ) {
-            savedActive = formatVaultFileName(parsed.activeVaultFile);
-          }
-          if (typeof parsed.autoLockOnBackground === 'boolean') {
-            savedAutoLock = parsed.autoLockOnBackground;
-          }
-          if (Array.isArray(parsed.knownVaults)) {
-            for (const v of parsed.knownVaults) {
-              if (typeof v === 'string' && v.trim()) {
-                const candidate = formatVaultFileName(v);
-                if (await this.vaultExists(candidate)) {
-                  vaultSet.add(candidate);
-                }
-              }
-            }
-          }
-        }
-      } catch {
-        // Profil JSON okunamazsa dizin taramasıyla devam et
-      }
+        // Tek seferde dizin listesini alıp disk I/O tur sayısını 1'e indiriyoruz
+        const dirFiles = (typeof FileSystem.readDirectoryAsync === 'function')
+          ? await FileSystem.readDirectoryAsync(FileSystem.documentDirectory)
+          : [];
+        const existingFileSet = new Set(dirFiles.map((f) => f.toLowerCase()));
 
-      // Dizindeki tüm .kdbx dosyalarını otomatik keşfet (ve varsa yarım kalmış .tmp dosyalarını kurtar)
-      try {
-        if (typeof FileSystem.readDirectoryAsync === 'function') {
-          const files = await FileSystem.readDirectoryAsync(
-            FileSystem.documentDirectory
-          );
-          for (const f of files) {
-            const lower = f.toLowerCase();
-            if (lower.endsWith('.kdbx')) {
-              vaultSet.add(f);
-            } else if (lower.endsWith('.kdbx.tmp')) {
-              const recoveredName = f.slice(0, -4);
-              const recoveredPath = this.resolveFilePath(recoveredName);
-              const tmpPath = `${FileSystem.documentDirectory}${f}`;
-              const recInfo = await FileSystem.getInfoAsync(recoveredPath);
-              if (!recInfo.exists) {
-                try {
-                  const b64 = await FileSystem.readAsStringAsync(tmpPath, {
-                    encoding: FileSystem.EncodingType.Base64,
-                  });
-                  await FileSystem.writeAsStringAsync(recoveredPath, b64, {
-                    encoding: FileSystem.EncodingType.Base64,
-                  });
-                  vaultSet.add(recoveredName);
-                } catch {
-                  // Ignore recovery error
+        if (existingFileSet.has(PROFILE_FILENAME.toLowerCase())) {
+          try {
+            const rawJson = await FileSystem.readAsStringAsync(profilePath);
+            const parsed = JSON.parse(rawJson) as Partial<VaultProfile>;
+            if (typeof parsed.ownerName === 'string') {
+              savedOwner = parsed.ownerName;
+            }
+            if (
+              typeof parsed.activeVaultFile === 'string' &&
+              parsed.activeVaultFile.trim()
+            ) {
+              savedActive = formatVaultFileName(parsed.activeVaultFile);
+            }
+            if (typeof parsed.autoLockOnBackground === 'boolean') {
+              savedAutoLock = parsed.autoLockOnBackground;
+            }
+            if (Array.isArray(parsed.knownVaults)) {
+              for (const v of parsed.knownVaults) {
+                if (typeof v === 'string' && v.trim()) {
+                  const candidate = formatVaultFileName(v);
+                  if (existingFileSet.has(candidate.toLowerCase())) {
+                    vaultSet.add(candidate);
+                  }
                 }
               }
             }
+          } catch {
+            // Profil JSON parse hatasını yoksay
+          }
+        }
+
+        // Keşfedilen tüm .kdbx dosyalarını ekle
+        for (const f of dirFiles) {
+          const lower = f.toLowerCase();
+          if (lower.endsWith('.kdbx')) {
+            vaultSet.add(f);
           }
         }
       } catch {
-        // Dizin okuma hatasını yoksay
+        // Dizin tarama hatasını yoksay
       }
     } else if (this.memoryFallbackStore[profilePath]) {
       try {
@@ -721,8 +703,8 @@ export class KdbxService {
       kdbxweb.ProtectedValue.fromString(masterPassword)
     );
     const vaultTitle = cleanOwner
-      ? `${cleanOwner} AirVault`
-      : this.activeFileName.replace(/\.kdbx$/i, '') || 'AirVault';
+      ? `${cleanOwner} Keyra`
+      : this.activeFileName.replace(/\.kdbx$/i, '') || 'Keyra';
     const db = kdbxweb.Kdbx.create(credentials, vaultTitle);
 
     if (cleanOwner) {

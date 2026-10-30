@@ -37,7 +37,8 @@
         {
           "cameraPermission": "Keyra'nın QR kodları tarayabilmesi için kamera izni gerekiyor."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "eas": {

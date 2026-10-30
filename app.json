@@ -19,13 +19,25 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
+      "permissions": [
+        "CAMERA",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Keyra'nın QR kodları tarayabilmesi için kamera izni gerekiyor."
+        }
+      ]
     ],
     "extra": {
       "eas": {

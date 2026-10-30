@@ -25,9 +25,17 @@ import {
   AppStateStatus,
   Linking,
   StatusBar as RNStatusBar,
+  Image,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import * as Clipboard from 'expo-clipboard';
+import QRCode from 'react-native-qrcode-svg';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { googleDriveSync, GoogleSyncState } from './services/GoogleDriveSyncService';
+import { qrSync, QrSyncPayload } from './services/QrSyncService';
+import { webConnectService } from './services/WebConnectService';
 import {
   AuthScreenMode,
   EntryCategory,
@@ -49,20 +57,58 @@ declare const global: {
 global.Buffer = Buffer;
 
 const COLORS = {
-  background: '#000000',
-  foreground: '#e4e4e7',
-  card: '#0d0d0e',
-  surface: '#161618',
-  primary: '#f2f2f2',
-  primaryForeground: '#000000',
-  mutedForeground: '#8a8a93',
-  destructive: '#b7b7bd',
-  border: '#222225',
-  dangerRed: '#ff4d6d',
+  background: '#090A0F', // Koyu Obsidian zemin
+  foreground: '#F8FAFC', // Slate 50 net metin
+  card: '#12141D',       // Yükseltilmiş kart yüzeyi
+  cardHighlight: '#1A1D2A',
+  surface: '#151824',    // Form & Input arka planı
+  surfaceLight: '#1F2435',
+  primary: '#6366F1',    // Keyra Electric Indigo ana marka rengi
+  primaryHover: '#4F46E5',
+  primaryForeground: '#FFFFFF',
+  cyanAccent: '#38BDF8', // Neon Cyan vurgusu
+  emerald: '#10B981',    // Başarı & Güçlü Şifre
+  amber: '#F59E0B',      // Orta Şifre / Uyarı
+  dangerRed: '#EF4444',  // Hata & Silme
+  destructive: '#EF4444',
+  mutedForeground: '#94A3B8', // Slate 400 ikincil metin
+  subtleText: '#64748B', // Slate 500 kılavuz metin
+  border: 'rgba(255, 255, 255, 0.08)', // İnce cam kenarlık
+  borderActive: 'rgba(99, 102, 241, 0.5)',
 };
 
 const MONO_FONT = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
 const CLIPBOARD_CLEAR_MS = 30000;
+
+const MONOGRAM_PALETTES = [
+  { bg: 'rgba(99, 102, 241, 0.16)', text: '#818CF8', border: 'rgba(99, 102, 241, 0.35)' }, // Indigo
+  { bg: 'rgba(16, 185, 129, 0.16)', text: '#34D399', border: 'rgba(16, 185, 129, 0.35)' }, // Emerald
+  { bg: 'rgba(56, 189, 248, 0.16)', text: '#38BDF8', border: 'rgba(56, 189, 248, 0.35)' }, // Sky
+  { bg: 'rgba(236, 72, 153, 0.16)', text: '#F472B6', border: 'rgba(236, 72, 153, 0.35)' }, // Pink
+  { bg: 'rgba(245, 158, 11, 0.16)', text: '#FBBF24', border: 'rgba(245, 158, 11, 0.35)' }, // Amber
+  { bg: 'rgba(168, 85, 247, 0.16)', text: '#C084FC', border: 'rgba(168, 85, 247, 0.35)' }, // Purple
+  { bg: 'rgba(20, 184, 166, 0.16)', text: '#2DD4BF', border: 'rgba(20, 184, 166, 0.35)' }, // Teal
+];
+
+function getMonogramStyle(str: string) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return MONOGRAM_PALETTES[Math.abs(hash) % MONOGRAM_PALETTES.length];
+}
+
+const triggerHaptic = (type: 'light' | 'medium' | 'success' | 'error' = 'light') => {
+  try {
+    if (type === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    else if (type === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    else if (type === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    else if (type === 'error') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  } catch {
+    // Platform bazlı hata yoksayılır
+  }
+};
 
 function scorePassword(value: string): number {
   let score = 0;
@@ -73,7 +119,8 @@ function scorePassword(value: string): number {
   return Math.min(score, 4);
 }
 
-const STRENGTH_LABELS = ['Boş', 'Zayıf', 'Orta', 'Güçlü', 'Çok Güçlü'];
+const STRENGTH_LABELS = ['Boş', 'Zayıf', 'Orta', 'Güçlü', 'Kırılmaz'];
+const STRENGTH_COLORS = ['#64748B', '#EF4444', '#F59E0B', '#10B981', '#6366F1'];
 const GENERATOR_LENGTHS = [12, 16, 24, 32] as const;
 
 // ==========================================
@@ -101,38 +148,91 @@ const EntryCardItem = React.memo(function EntryCardItem({
   }, []);
 
   const handleCopy = () => {
+    triggerHaptic('success');
     onCopyText(entry.password, `${entry.title} şifresi`);
     setCopied(true);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setCopied(false), 1500);
   };
 
+  const handleToggleReveal = () => {
+    triggerHaptic('light');
+    setRevealed((r) => !r);
+  };
+
   const monogram = entry.monogram || deriveMonogram(entry.title);
+  const palette = getMonogramStyle(entry.title);
+
+  // URL'den alan adını temiz çıkarma (örn. https://accounts.google.com -> google.com)
+  const displayHost = useMemo(() => {
+    if (!entry.url) return null;
+    try {
+      const u = entry.url.replace(/^https?:\/\//i, '').split('/')[0];
+      return u.replace(/^www\./i, '');
+    } catch {
+      return null;
+    }
+  }, [entry.url]);
 
   return (
     <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={() => onOpenDetail(entry)}
+      activeOpacity={0.82}
+      onPress={() => {
+        triggerHaptic('light');
+        onOpenDetail(entry);
+      }}
       style={styles.entryCard}
     >
-      <View style={styles.monogramBox}>
-        <Text style={styles.monogramText}>{monogram}</Text>
+      <View
+        style={[
+          styles.monogramBox,
+          {
+            backgroundColor: palette.bg,
+            borderColor: palette.border,
+          },
+        ]}
+      >
+        <Text style={[styles.monogramText, { color: palette.text }]}>
+          {monogram}
+        </Text>
       </View>
 
       <View style={styles.entryCenter}>
-        <Text style={styles.entryTitle} numberOfLines={1}>
-          {entry.title}
-        </Text>
+        <View style={styles.entryTitleRow}>
+          <Text style={styles.entryTitle} numberOfLines={1}>
+            {entry.title}
+          </Text>
+          {displayHost ? (
+            <Text style={styles.entryHostBadge} numberOfLines={1}>
+              {displayHost}
+            </Text>
+          ) : null}
+        </View>
+
         {entry.username ? (
           <Text style={styles.entryUsername} numberOfLines={1}>
             {entry.username}
           </Text>
         ) : null}
+
         <TouchableOpacity
-          onPress={() => setRevealed((r) => !r)}
+          onPress={handleToggleReveal}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           style={styles.secretToggleWrap}
         >
-          <Text style={styles.entrySecretMask} numberOfLines={1}>
+          <Ionicons
+            name={revealed ? 'eye-off-outline' : 'eye-outline'}
+            size={13}
+            color={COLORS.subtleText}
+            style={{ marginRight: 5 }}
+          />
+          <Text
+            style={[
+              styles.entrySecretMask,
+              revealed && styles.entrySecretMaskRevealed,
+            ]}
+            numberOfLines={1}
+          >
             {revealed ? entry.password : '••••••••••••'}
           </Text>
         </TouchableOpacity>
@@ -140,16 +240,22 @@ const EntryCardItem = React.memo(function EntryCardItem({
 
       <TouchableOpacity
         onPress={handleCopy}
-        activeOpacity={0.75}
+        activeOpacity={0.7}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         style={[styles.copyButton, copied && styles.copyButtonActive]}
       >
+        <Ionicons
+          name={copied ? 'checkmark-circle' : 'copy-outline'}
+          size={15}
+          color={copied ? COLORS.emerald : COLORS.mutedForeground}
+        />
         <Text
           style={[
             styles.copyButtonText,
             copied && styles.copyButtonTextActive,
           ]}
         >
-          {copied ? '✓' : 'Kopyala'}
+          {copied ? 'Kopyalandı' : 'Kopyala'}
         </Text>
       </TouchableOpacity>
     </TouchableOpacity>
@@ -234,6 +340,22 @@ export default function App() {
   const [genIncludeNumbers, setGenIncludeNumbers] = useState<boolean>(true);
   const [genIncludeSymbols, setGenIncludeSymbols] = useState<boolean>(true);
 
+  // Senkronizasyon (Google Drive & QR Sync) State'leri
+  const [gdriveState, setGdriveState] = useState<GoogleSyncState>({
+    isConnected: false,
+    email: null,
+    lastSyncTime: null,
+    isSyncing: false,
+    error: null,
+  });
+  const [googleTokenInput, setGoogleTokenInput] = useState<string>('');
+  const [showTokenInput, setShowTokenInput] = useState<boolean>(false);
+  const [qrModalOpen, setQrModalOpen] = useState<boolean>(false);
+  const [qrPayloadString, setQrPayloadString] = useState<string>('');
+  const [qrPairingPin, setQrPairingPin] = useState<string>('');
+  const [scannerModalOpen, setScannerModalOpen] = useState<boolean>(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+
   const showToast = useCallback((msg: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToastMessage(msg);
@@ -312,6 +434,8 @@ export default function App() {
           fileName: profile.activeVaultFile,
         }));
         await refreshBiometricState(profile.activeVaultFile);
+        const gState = await googleDriveSync.loadState();
+        setGdriveState(gState);
       } catch {
         // Varsayılan değerlerle devam et
       }
@@ -876,7 +1000,170 @@ export default function App() {
     );
   };
 
-  const visibleEntries = useMemo(() => {
+  // Google Drive Senkronizasyon İşlemi
+  const handleSyncWithGoogleDrive = async () => {
+    if (!gdriveState.isConnected) {
+      setShowTokenInput(true);
+      return;
+    }
+
+    try {
+      setGdriveState((s) => ({ ...s, isSyncing: true, error: null }));
+      triggerHaptic('light');
+
+      // 1. Yerel kasanın güncel halini al
+      const localBuf = await kdbxService.getCurrentVaultBuffer();
+
+      // 2. Google Drive'da aynı isimde dosya var mı ara
+      const remoteFile = await googleDriveSync.findFileInDrive(vaultState.fileName);
+
+      if (remoteFile) {
+        // Uzaktaki dosyayı indir
+        const remoteBuf = await googleDriveSync.downloadFileFromDrive(remoteFile.id);
+
+        // İki kasayı akıllıca birleştir (merge)
+        const mergedEntries = await kdbxService.mergeRemoteVaultBuffer(remoteBuf);
+        setVaultState((prev) => ({ ...prev, entries: mergedEntries }));
+
+        // Birleşmiş yeni halini Drive'a geri yükle
+        const finalBuf = await kdbxService.getCurrentVaultBuffer();
+        await googleDriveSync.uploadFileToDrive(vaultState.fileName, finalBuf);
+
+        showToast('Google Drive ile başarıyla senkronize edildi');
+      } else {
+        // Drive'da henüz dosya yoksa sıfırdan yükle
+        await googleDriveSync.uploadFileToDrive(vaultState.fileName, localBuf);
+        showToast('Kasa Google Drive üzerine yedeklendi');
+      }
+
+      const updatedState = await googleDriveSync.loadState();
+      setGdriveState(updatedState);
+      triggerHaptic('success');
+    } catch (err: unknown) {
+      triggerHaptic('error');
+      const msg = err instanceof Error ? err.message : 'Eşitleme başarısız oldu.';
+      setGdriveState((s) => ({ ...s, isSyncing: false, error: msg }));
+      Alert.alert('Eşitleme Hatası', msg);
+    }
+  };
+
+  // Google Giriş / Token Kaydetme
+  const handleSaveGoogleToken = async () => {
+    if (!googleTokenInput.trim()) return;
+    await googleDriveSync.setAuthToken(googleTokenInput.trim());
+    setShowTokenInput(false);
+    setGoogleTokenInput('');
+    const updated = await googleDriveSync.loadState();
+    setGdriveState(updated);
+    showToast('Google hesabı bağlandı');
+    triggerHaptic('success');
+  };
+
+  // Google Bağlantısını Kes
+  const handleDisconnectGoogleDrive = async () => {
+    await googleDriveSync.disconnect();
+    const updated = await googleDriveSync.loadState();
+    setGdriveState(updated);
+    showToast('Google Drive bağlantısı kesildi');
+    triggerHaptic('light');
+  };
+
+  // QR Kod ile Paylaş / Eşle
+  const handleOpenQrShare = async () => {
+    try {
+      triggerHaptic('light');
+      const buf = await kdbxService.getCurrentVaultBuffer();
+      const { qrString, pin } = qrSync.createSyncPayload(
+        vaultState.fileName,
+        vaultState.entries.length,
+        buf
+      );
+      setQrPayloadString(qrString);
+      setQrPairingPin(pin);
+      setQrModalOpen(true);
+    } catch (err: unknown) {
+      Alert.alert('Hata', 'QR senkronizasyon paketi oluşturulamadı.');
+    }
+  };
+
+  // QR Kod Tarama Ekranını Aç
+  const handleOpenQrScanner = async () => {
+    triggerHaptic('light');
+    if (!cameraPermission?.granted) {
+      const res = await requestCameraPermission();
+      if (!res.granted) {
+        Alert.alert('Kamera İzni', 'QR kod taramak için kamera izni gerekiyor.');
+        return;
+      }
+    }
+    setScannerModalOpen(true);
+  };
+
+  // Kamera QR Okuduğunda Çalışan Fonksiyon
+  const handleBarcodeScanned = async ({ data }: { data: string }) => {
+    if (!scannerModalOpen) return;
+    setScannerModalOpen(false);
+
+    // 1. Önce Keyra Web PC eşleşmesi mi kontrol et (WhatsApp Web Tarzı)
+    const webPayload = webConnectService.parseWebPairingQr(data);
+    if (webPayload) {
+      triggerHaptic('medium');
+      try {
+        await webConnectService.sendVaultToWeb(
+          webPayload.sessionId,
+          webPayload.keyHex,
+          vaultState.fileName,
+          vaultState.entries
+        );
+        triggerHaptic('success');
+        showToast('Bilgisayara bağlandı! Şifreleriniz tarayıcıda açıldı. 💻');
+      } catch {
+        triggerHaptic('error');
+        Alert.alert(
+          'Bağlantı Hatası',
+          'Bilgisayara veri aktarılamadı. Lütfen internet bağlantınızı kontrol edin.'
+        );
+      }
+      return;
+    }
+
+    // 2. Normal cihazdan cihaza QR eşleme mi?
+    const payload = qrSync.parseQrPayload(data);
+    if (!payload) {
+      triggerHaptic('error');
+      Alert.alert('Geçersiz QR', 'Bu QR kod geçerli bir Keyra senkronizasyon verisi içermiyor.');
+      return;
+    }
+
+    triggerHaptic('medium');
+
+    if (payload.dataBase64) {
+      try {
+        const remoteBuffer = Buffer.from(payload.dataBase64, 'base64');
+        const exactAb = remoteBuffer.buffer.slice(
+          remoteBuffer.byteOffset,
+          remoteBuffer.byteOffset + remoteBuffer.byteLength
+        );
+        const mergedEntries = await kdbxService.mergeRemoteVaultBuffer(exactAb);
+        setVaultState((prev) => ({ ...prev, entries: mergedEntries }));
+        triggerHaptic('success');
+        showToast(`"${payload.vaultFileName}" kasası başarıyla eşitlendi!`);
+      } catch {
+        triggerHaptic('error');
+        Alert.alert(
+          'Eşitleme Hatası',
+          'Taranan kasa şifresi mevcut kasa şifrenizle eşleşmiyor veya veri bozulmuş.'
+        );
+      }
+    } else {
+      Alert.alert(
+        'Cihaz Eşlendi',
+        `PIN: ${payload.pin}\nCihaz ID: ${payload.deviceId}\nKasa: ${payload.vaultFileName} (${payload.entriesCount} kayıt)\nEşitleme bağlantısı kuruldu.`
+      );
+    }
+  };
+
+  const filteredEntries = useMemo(() => {
     const q = query.trim().toLowerCase();
     return vaultState.entries.filter((entry) => {
       if (filter !== 'all' && entry.category !== filter) return false;
@@ -896,7 +1183,8 @@ export default function App() {
       >
         {toastMessage && (
           <View style={styles.toastBanner}>
-            <Text style={styles.toastText}>✓ {toastMessage}</Text>
+            <Ionicons name="checkmark-circle" size={16} color={COLORS.emerald} style={{ marginRight: 6 }} />
+            <Text style={styles.toastText}>{toastMessage}</Text>
           </View>
         )}
 
@@ -910,6 +1198,7 @@ export default function App() {
             <View style={styles.modeSwitchBar}>
               <TouchableOpacity
                 onPress={() => {
+                  triggerHaptic('light');
                   setErrorMessage(null);
                   setAuthMode('welcome');
                 }}
@@ -918,6 +1207,12 @@ export default function App() {
                   authMode === 'welcome' && styles.modeSwitchTabActive,
                 ]}
               >
+                <Ionicons
+                  name="sparkles-outline"
+                  size={13}
+                  color={authMode === 'welcome' ? '#FFF' : COLORS.mutedForeground}
+                  style={{ marginRight: 4 }}
+                />
                 <Text
                   style={[
                     styles.modeSwitchTabText,
@@ -929,12 +1224,21 @@ export default function App() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={goToCreateMode}
+                onPress={() => {
+                  triggerHaptic('light');
+                  goToCreateMode();
+                }}
                 style={[
                   styles.modeSwitchTab,
                   authMode === 'create' && styles.modeSwitchTabActive,
                 ]}
               >
+                <Ionicons
+                  name="add-circle-outline"
+                  size={13}
+                  color={authMode === 'create' ? '#FFF' : COLORS.mutedForeground}
+                  style={{ marginRight: 4 }}
+                />
                 <Text
                   style={[
                     styles.modeSwitchTabText,
@@ -946,12 +1250,21 @@ export default function App() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={goToUnlockMode}
+                onPress={() => {
+                  triggerHaptic('light');
+                  goToUnlockMode();
+                }}
                 style={[
                   styles.modeSwitchTab,
                   authMode === 'unlock' && styles.modeSwitchTabActive,
                 ]}
               >
+                <Ionicons
+                  name="key-outline"
+                  size={13}
+                  color={authMode === 'unlock' ? '#FFF' : COLORS.mutedForeground}
+                  style={{ marginRight: 4 }}
+                />
                 <Text
                   style={[
                     styles.modeSwitchTabText,
@@ -965,13 +1278,17 @@ export default function App() {
 
             {/* Logo & Başlık */}
             <View style={styles.lockHero}>
-              <View style={styles.lockCircleInner}>
-                <View style={styles.lockIconShackle} />
-                <View style={styles.lockIconBody}>
-                  <View style={styles.lockIconKeyholeDot} />
-                </View>
+              <View style={styles.logoImageWrap}>
+                <Image
+                  source={require('./assets/keyra-logo.png')}
+                  style={styles.logoImage}
+                  resizeMode="cover"
+                />
               </View>
-              <Text style={styles.lockBrandTitle}>Keyra</Text>
+              <View style={styles.lockBrandWrap}>
+                <Text style={styles.lockBrandTitle}>Keyra</Text>
+                <Text style={styles.lockBrandSubtitle}>KeePass • %100 Çevrimdışı Kasa</Text>
+              </View>
             </View>
 
             {/* =====================================================
@@ -1380,32 +1697,52 @@ export default function App() {
             {/* Üst Başlık */}
             <View style={styles.dashHeader}>
               <View style={styles.dashHeaderLeft}>
-                <Text style={styles.unlockedText}>
-                  {vaultState.ownerName
-                    ? `${vaultState.ownerName} • ${vaultState.entries.length} Kayıt`
-                    : `${vaultState.entries.length} Kayıt`}
-                </Text>
-                <Text style={styles.vaultFileName} numberOfLines={1}>
-                  {vaultState.fileName}
-                </Text>
+                <Image
+                  source={require('./assets/keyra-logo.png')}
+                  style={styles.dashLogoMini}
+                  resizeMode="cover"
+                />
+                <View>
+                  <Text style={styles.dashBrandName}>
+                    {vaultState.ownerName ? `${vaultState.ownerName} Kasası` : 'Keyra'}
+                  </Text>
+                  <Text style={styles.vaultFileName} numberOfLines={1}>
+                    {vaultState.fileName} • {vaultState.entries.length} Kayıt
+                  </Text>
+                </View>
               </View>
 
               <View style={styles.dashHeaderActions}>
                 <TouchableOpacity
-                  onPress={() => {
-                    setChangePwSectionOpen(false);
-                    setSettingsModalOpen(true);
-                  }}
-                  style={styles.headerActionButton}
+                  activeOpacity={0.75}
+                  onPress={handleOpenQrScanner}
+                  style={styles.headerIconButton}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text style={styles.headerActionText}>Ayarlar</Text>
+                  <Ionicons name="laptop-outline" size={20} color={COLORS.primary} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  onPress={() => handleLock(false)}
-                  style={styles.headerLockButton}
+                  activeOpacity={0.75}
+                  onPress={() => {
+                    triggerHaptic('light');
+                    setChangePwSectionOpen(false);
+                    setSettingsModalOpen(true);
+                  }}
+                  style={styles.headerIconButton}
                 >
-                  <Text style={styles.headerLockText}>Kilitle</Text>
+                  <Ionicons name="settings-outline" size={19} color={COLORS.mutedForeground} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  onPress={() => {
+                    triggerHaptic('medium');
+                    handleLock(false);
+                  }}
+                  style={styles.headerLockIconButton}
+                >
+                  <Ionicons name="lock-closed" size={16} color={COLORS.dangerRed} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -1413,18 +1750,30 @@ export default function App() {
             {/* Arama Çubuğu */}
             <View style={styles.searchSection}>
               <View style={styles.searchBar}>
+                <Ionicons
+                  name="search"
+                  size={16}
+                  color={COLORS.subtleText}
+                  style={{ marginRight: 8 }}
+                />
                 <TextInput
                   style={styles.searchBarInput}
                   value={query}
                   onChangeText={setQuery}
-                  placeholder="Kayıtlarda ara..."
-                  placeholderTextColor={COLORS.mutedForeground}
+                  placeholder="Kayıtlarda veya hesaplarda ara..."
+                  placeholderTextColor={COLORS.subtleText}
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
                 {query.length > 0 && (
-                  <TouchableOpacity onPress={() => setQuery('')}>
-                    <Text style={styles.clearQueryText}>Temizle</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      triggerHaptic('light');
+                      setQuery('');
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={17} color={COLORS.subtleText} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1439,10 +1788,25 @@ export default function App() {
               >
                 {FILTERS.map((item) => {
                   const active = filter === item.id;
+                  const iconName =
+                    item.id === 'all'
+                      ? 'grid-outline'
+                      : item.id === 'logins'
+                      ? 'key-outline'
+                      : item.id === 'servers'
+                      ? 'server-outline'
+                      : item.id === 'tokens'
+                      ? 'shield-checkmark-outline'
+                      : 'document-text-outline';
+
                   return (
                     <TouchableOpacity
                       key={item.id}
-                      onPress={() => setFilter(item.id)}
+                      activeOpacity={0.75}
+                      onPress={() => {
+                        triggerHaptic('light');
+                        setFilter(item.id);
+                      }}
                       style={[
                         styles.filterPill,
                         active
@@ -1450,6 +1814,12 @@ export default function App() {
                           : styles.filterPillInactive,
                       ]}
                     >
+                      <Ionicons
+                        name={iconName as any}
+                        size={13}
+                        color={active ? '#FFFFFF' : COLORS.mutedForeground}
+                        style={{ marginRight: 6 }}
+                      />
                       <Text
                         style={[
                           styles.filterPillText,
@@ -1469,7 +1839,7 @@ export default function App() {
             {/* Kayıt Listesi */}
             <View style={styles.entriesSection}>
               <FlatList
-                data={visibleEntries}
+                data={filteredEntries}
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.entriesListContent}
@@ -1486,18 +1856,34 @@ export default function App() {
                 )}
                 ListEmptyComponent={
                   <View style={styles.emptySearchBox}>
+                    <Ionicons
+                      name={query ? "search-outline" : "shield-checkmark-outline"}
+                      size={42}
+                      color={COLORS.subtleText}
+                      style={{ marginBottom: 12, opacity: 0.7 }}
+                    />
                     <Text style={styles.emptySearchTitle}>
                       {query
                         ? `"${query}" bulunamadı`
                         : 'Kasanızda henüz kayıt yok'}
                     </Text>
+                    <Text style={styles.emptySearchSubtitle}>
+                      {query
+                        ? 'Farklı bir arama terimi deneyin.'
+                        : 'İlk şifrenizi ekleyin ve çevrimdışı güvende tutun.'}
+                    </Text>
                     {!query && (
                       <TouchableOpacity
-                        onPress={openAddEntryModal}
+                        activeOpacity={0.85}
+                        onPress={() => {
+                          triggerHaptic('medium');
+                          openAddEntryModal();
+                        }}
                         style={styles.emptyAddBtn}
                       >
+                        <Ionicons name="add" size={17} color="#FFFFFF" style={{ marginRight: 4 }} />
                         <Text style={styles.emptyAddBtnText}>
-                          + İlk Kaydı Ekle
+                          İlk Kaydı Ekle
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -1509,10 +1895,13 @@ export default function App() {
             {/* Sağ Alt Yeni Kayıt Ekleme Butonu */}
             <TouchableOpacity
               activeOpacity={0.85}
-              onPress={openAddEntryModal}
+              onPress={() => {
+                triggerHaptic('medium');
+                openAddEntryModal();
+              }}
               style={styles.fabButton}
             >
-              <Text style={styles.fabIcon}>+</Text>
+              <Ionicons name="add" size={26} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         )}
@@ -1533,12 +1922,32 @@ export default function App() {
               {selectedEntry && (
                 <>
                   <View style={styles.sheetHeader}>
-                    <Text style={styles.sheetTitle}>{selectedEntry.title}</Text>
+                    <View style={styles.detailTitleRow}>
+                      {(() => {
+                        const pal = getMonogramStyle(selectedEntry.title);
+                        const mono = selectedEntry.monogram || deriveMonogram(selectedEntry.title);
+                        return (
+                          <View style={[styles.detailMonogramBadge, { backgroundColor: pal.bg, borderColor: pal.border }]}>
+                            <Text style={[styles.detailMonogramText, { color: pal.text }]}>{mono}</Text>
+                          </View>
+                        );
+                      })()}
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.sheetTitle}>{selectedEntry.title}</Text>
+                        <Text style={styles.detailCategoryLabel}>
+                          {FILTERS.find((f) => f.id === selectedEntry.category)?.label || 'Giriş'}
+                        </Text>
+                      </View>
+                    </View>
                     <TouchableOpacity
-                      onPress={() => setDetailModalOpen(false)}
-                      style={styles.closeButton}
+                      onPress={() => {
+                        triggerHaptic('light');
+                        setDetailModalOpen(false);
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      style={styles.closeIconButton}
                     >
-                      <Text style={styles.closeButtonText}>Kapat</Text>
+                      <Ionicons name="close" size={20} color={COLORS.mutedForeground} />
                     </TouchableOpacity>
                   </View>
 
@@ -1551,45 +1960,91 @@ export default function App() {
                     </View>
                     {selectedEntry.username ? (
                       <TouchableOpacity
-                        onPress={() =>
+                        onPress={() => {
+                          triggerHaptic('success');
                           handleCopyText(
                             selectedEntry.username,
                             'Kullanıcı adı'
-                          )
-                        }
+                          );
+                        }}
                         style={styles.detailCopyPill}
                       >
+                        <Ionicons name="copy-outline" size={13} color={COLORS.primary} style={{ marginRight: 4 }} />
                         <Text style={styles.detailCopyPillText}>Kopyala</Text>
                       </TouchableOpacity>
                     ) : null}
                   </View>
 
-                  {/* Şifre Satırı (Varsayılan Gizli + Göster/Gizle + Kopyala) */}
+                  {/* Şifre Satırı (Varsayılan Gizli + Göster/Gizle + Kopyala + Güç Çubuğu) */}
                   <View style={styles.detailRowBox}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>ŞİFRE</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginRight: 10 }}>
+                        <Text style={styles.fieldLabel}>ŞİFRE</Text>
+                        {(() => {
+                          const strScore = scorePassword(selectedEntry.password);
+                          return (
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: STRENGTH_COLORS[strScore] }}>
+                              {STRENGTH_LABELS[strScore]}
+                            </Text>
+                          );
+                        })()}
+                      </View>
                       <Text style={styles.detailValueMono}>
                         {detailPasswordVisible
                           ? selectedEntry.password
-                          : '••••••••••••'}
+                          : '••••••••••••••••'}
                       </Text>
+
+                      {/* Güç Çubuğu */}
+                      {(() => {
+                        const strScore = scorePassword(selectedEntry.password);
+                        return (
+                          <View style={styles.strengthMeterContainer}>
+                            {[1, 2, 3, 4].map((seg) => (
+                              <View
+                                key={seg}
+                                style={[
+                                  styles.strengthSegment,
+                                  {
+                                    backgroundColor:
+                                      seg <= strScore
+                                        ? STRENGTH_COLORS[strScore]
+                                        : 'rgba(255,255,255,0.08)',
+                                  },
+                                ]}
+                              />
+                            ))}
+                          </View>
+                        );
+                      })()}
                     </View>
                     <View style={styles.inlinePillGroup}>
                       <TouchableOpacity
-                        onPress={() => setDetailPasswordVisible((v) => !v)}
+                        onPress={() => {
+                          triggerHaptic('light');
+                          setDetailPasswordVisible((v) => !v);
+                        }}
                         style={styles.detailCopyPill}
                       >
+                        <Ionicons
+                          name={detailPasswordVisible ? 'eye-off-outline' : 'eye-outline'}
+                          size={13}
+                          color={COLORS.primary}
+                          style={{ marginRight: 4 }}
+                        />
                         <Text style={styles.detailCopyPillText}>
                           {detailPasswordVisible ? 'Gizle' : 'Göster'}
                         </Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
-                        onPress={() =>
-                          handleCopyText(selectedEntry.password, 'Şifre')
-                        }
+                        onPress={() => {
+                          triggerHaptic('success');
+                          handleCopyText(selectedEntry.password, 'Şifre');
+                        }}
                         style={styles.detailCopyPill}
                       >
+                        <Ionicons name="copy-outline" size={13} color={COLORS.primary} style={{ marginRight: 4 }} />
                         <Text style={styles.detailCopyPillText}>Kopyala</Text>
                       </TouchableOpacity>
                     </View>
@@ -1606,18 +2061,24 @@ export default function App() {
                       </View>
                       <View style={styles.inlinePillGroup}>
                         <TouchableOpacity
-                          onPress={() => handleOpenUrl(selectedEntry.url!)}
+                          onPress={() => {
+                            triggerHaptic('light');
+                            handleOpenUrl(selectedEntry.url!);
+                          }}
                           style={styles.detailCopyPill}
                         >
-                          <Text style={styles.detailCopyPillText}>Aç</Text>
+                          <Feather name="external-link" size={12} color={COLORS.cyanAccent} style={{ marginRight: 4 }} />
+                          <Text style={[styles.detailCopyPillText, { color: COLORS.cyanAccent }]}>Aç</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                          onPress={() =>
-                            handleCopyText(selectedEntry.url!, 'URL')
-                          }
+                          onPress={() => {
+                            triggerHaptic('success');
+                            handleCopyText(selectedEntry.url!, 'URL');
+                          }}
                           style={styles.detailCopyPill}
                         >
+                          <Ionicons name="copy-outline" size={13} color={COLORS.primary} style={{ marginRight: 4 }} />
                           <Text style={styles.detailCopyPillText}>Kopyala</Text>
                         </TouchableOpacity>
                       </View>
@@ -1651,20 +2112,26 @@ export default function App() {
                   {/* Düzenle & Sil Aksiyonları */}
                   <View style={styles.detailActionButtons}>
                     <TouchableOpacity
-                      onPress={() => openEditEntryModal(selectedEntry)}
+                      activeOpacity={0.85}
+                      onPress={() => {
+                        triggerHaptic('medium');
+                        openEditEntryModal(selectedEntry);
+                      }}
                       style={[styles.unlockButton, { flex: 1 }]}
                     >
+                      <Feather name="edit-2" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
                       <Text style={styles.unlockButtonText}>Kaydı Düzenle</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      onPress={() => handleDeleteEntry(selectedEntry)}
-                      style={[
-                        styles.deleteEntryButton,
-                        { paddingHorizontal: 20 },
-                      ]}
+                      activeOpacity={0.85}
+                      onPress={() => {
+                        triggerHaptic('error');
+                        handleDeleteEntry(selectedEntry);
+                      }}
+                      style={styles.deleteIconButton}
                     >
-                      <Text style={styles.deleteEntryButtonText}>Sil</Text>
+                      <Feather name="trash-2" size={18} color="#FFFFFF" />
                     </TouchableOpacity>
                   </View>
                 </>
@@ -1698,12 +2165,14 @@ export default function App() {
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
+                    triggerHaptic('light');
                     setAddModalOpen(false);
                     setEditingEntryId(null);
                   }}
-                  style={styles.closeButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={styles.closeIconButton}
                 >
-                  <Text style={styles.closeButtonText}>Kapat</Text>
+                  <Ionicons name="close" size={20} color={COLORS.mutedForeground} />
                 </TouchableOpacity>
               </View>
 
@@ -1717,7 +2186,7 @@ export default function App() {
                   <TextInput
                     style={styles.modalInputBox}
                     placeholder="Örn: GitHub, E-Posta, Banka"
-                    placeholderTextColor={COLORS.mutedForeground}
+                    placeholderTextColor={COLORS.subtleText}
                     value={newTitle}
                     onChangeText={setNewTitle}
                   />
@@ -1728,7 +2197,10 @@ export default function App() {
                     <Text style={styles.fieldLabel}>KULLANICI ADI</Text>
                     {vaultState.ownerName ? (
                       <TouchableOpacity
-                        onPress={() => setNewUsername(vaultState.ownerName)}
+                        onPress={() => {
+                          triggerHaptic('light');
+                          setNewUsername(vaultState.ownerName);
+                        }}
                       >
                         <Text style={styles.regenerateLink}>
                           Adımı Kullan ({vaultState.ownerName})
@@ -1739,7 +2211,7 @@ export default function App() {
                   <TextInput
                     style={styles.modalInputBox}
                     placeholder="Örn: kuzey@domain.com"
-                    placeholderTextColor={COLORS.mutedForeground}
+                    placeholderTextColor={COLORS.subtleText}
                     value={newUsername}
                     onChangeText={setNewUsername}
                     autoCapitalize="none"
@@ -1749,28 +2221,66 @@ export default function App() {
 
                 <View style={styles.modalFieldGroup}>
                   <View style={styles.fieldLabelRow}>
-                    <Text style={styles.fieldLabel}>ŞİFRE *</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={styles.fieldLabel}>ŞİFRE *</Text>
+                      {newPassword ? (
+                        <Text
+                          style={{
+                            marginLeft: 8,
+                            fontSize: 10,
+                            fontWeight: '700',
+                            color: STRENGTH_COLORS[scorePassword(newPassword)],
+                          }}
+                        >
+                          • {STRENGTH_LABELS[scorePassword(newPassword)]}
+                        </Text>
+                      ) : null}
+                    </View>
                     <TouchableOpacity
-                      onPress={() =>
+                      activeOpacity={0.75}
+                      onPress={() => {
+                        triggerHaptic('light');
                         generateStrongPassword(
                           genLength,
                           genIncludeNumbers,
                           genIncludeSymbols
-                        )
-                      }
+                        );
+                      }}
+                      style={{ flexDirection: 'row', alignItems: 'center' }}
                     >
-                      <Text style={styles.regenerateLink}>Yeni Şifre Üret</Text>
+                      <Ionicons name="refresh" size={13} color={COLORS.primary} style={{ marginRight: 4 }} />
+                      <Text style={styles.regenerateLink}>Yeni Üret</Text>
                     </TouchableOpacity>
                   </View>
                   <TextInput
                     style={[styles.modalInputBox, { fontFamily: MONO_FONT }]}
                     placeholder="Şifre girin veya üretin"
-                    placeholderTextColor={COLORS.mutedForeground}
+                    placeholderTextColor={COLORS.subtleText}
                     value={newPassword}
                     onChangeText={setNewPassword}
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
+
+                  {/* Canlı Şifre Gücü Göstergesi */}
+                  {newPassword ? (
+                    <View style={[styles.strengthMeterContainer, { marginTop: 6 }]}>
+                      {[1, 2, 3, 4].map((seg) => (
+                        <View
+                          key={seg}
+                          style={[
+                            styles.strengthSegment,
+                            {
+                              backgroundColor:
+                                seg <= scorePassword(newPassword)
+                                  ? STRENGTH_COLORS[scorePassword(newPassword)]
+                                  : 'rgba(255,255,255,0.08)',
+                            },
+                          ]}
+                        />
+                      ))}
+                    </View>
+                  ) : null}
 
                   {/* Özelleştirilebilir Şifre Üretici Kontrolleri */}
                   <View style={styles.generatorOptionsRow}>
@@ -1781,6 +2291,7 @@ export default function App() {
                           <TouchableOpacity
                             key={len}
                             onPress={() => {
+                              triggerHaptic('light');
                               setGenLength(len);
                               generateStrongPassword(
                                 len,
@@ -1809,6 +2320,7 @@ export default function App() {
                     <View style={styles.generatorLengthsGroup}>
                       <TouchableOpacity
                         onPress={() => {
+                          triggerHaptic('light');
                           const next = !genIncludeNumbers;
                           setGenIncludeNumbers(next);
                           generateStrongPassword(
@@ -1834,6 +2346,7 @@ export default function App() {
 
                       <TouchableOpacity
                         onPress={() => {
+                          triggerHaptic('light');
                           const next = !genIncludeSymbols;
                           setGenIncludeSymbols(next);
                           generateStrongPassword(
@@ -1865,7 +2378,7 @@ export default function App() {
                   <TextInput
                     style={styles.modalInputBox}
                     placeholder="https://..."
-                    placeholderTextColor={COLORS.mutedForeground}
+                    placeholderTextColor={COLORS.subtleText}
                     value={newUrl}
                     onChangeText={setNewUrl}
                     autoCapitalize="none"
@@ -1876,11 +2389,12 @@ export default function App() {
                 <View style={styles.modalFieldGroup}>
                   <Text style={styles.fieldLabel}>NOTLAR (İSTEĞE BAĞLI)</Text>
                   <TextInput
-                    style={styles.modalInputBox}
-                    placeholder="Ek notlar"
-                    placeholderTextColor={COLORS.mutedForeground}
+                    style={[styles.modalInputBox, { minHeight: 64, textAlignVertical: 'top' }]}
+                    placeholder="Ek notlar veya açıklamalar"
+                    placeholderTextColor={COLORS.subtleText}
                     value={newNotes}
                     onChangeText={setNewNotes}
+                    multiline
                   />
                 </View>
 
@@ -1893,17 +2407,20 @@ export default function App() {
                   >
                     {(
                       [
-                        { cat: 'logins', label: 'Girişler' },
-                        { cat: 'servers', label: 'Sunucular' },
-                        { cat: 'tokens', label: 'Tokenlar' },
-                        { cat: 'notes', label: 'Notlar' },
+                        { cat: 'logins', label: 'Girişler', icon: 'key-outline' },
+                        { cat: 'servers', label: 'Sunucular', icon: 'server-outline' },
+                        { cat: 'tokens', label: 'Tokenlar', icon: 'shield-checkmark-outline' },
+                        { cat: 'notes', label: 'Notlar', icon: 'document-text-outline' },
                       ] as const
                     ).map((item) => {
                       const active = newCategory === item.cat;
                       return (
                         <TouchableOpacity
                           key={item.cat}
-                          onPress={() => setNewCategory(item.cat)}
+                          onPress={() => {
+                            triggerHaptic('light');
+                            setNewCategory(item.cat);
+                          }}
                           style={[
                             styles.filterPill,
                             active
@@ -1911,6 +2428,12 @@ export default function App() {
                               : styles.filterPillInactive,
                           ]}
                         >
+                          <Ionicons
+                            name={item.icon as any}
+                            size={13}
+                            color={active ? '#FFFFFF' : COLORS.mutedForeground}
+                            style={{ marginRight: 5 }}
+                          />
                           <Text
                             style={[
                               styles.filterPillText,
@@ -1928,16 +2451,21 @@ export default function App() {
                 </View>
 
                 <TouchableOpacity
+                  activeOpacity={0.85}
                   disabled={isSaving}
-                  onPress={handleSaveEntry}
+                  onPress={() => {
+                    triggerHaptic('medium');
+                    handleSaveEntry();
+                  }}
                   style={styles.unlockButton}
                 >
+                  <Ionicons name="checkmark-sharp" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
                   <Text style={styles.unlockButtonText}>
                     {isSaving
                       ? 'Kaydediliyor…'
                       : editingEntryId
                       ? 'Değişiklikleri Kaydet'
-                      : 'Kaydet'}
+                      : 'Kaydı Kaydet'}
                   </Text>
                 </TouchableOpacity>
               </ScrollView>
@@ -1962,12 +2490,19 @@ export default function App() {
               <View style={styles.sheetHandle} />
 
               <View style={styles.sheetHeader}>
-                <Text style={styles.sheetTitle}>Ayarlar</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="settings-outline" size={20} color={COLORS.primary} style={{ marginRight: 8 }} />
+                  <Text style={styles.sheetTitle}>Ayarlar</Text>
+                </View>
                 <TouchableOpacity
-                  onPress={() => setSettingsModalOpen(false)}
-                  style={styles.closeButton}
+                  onPress={() => {
+                    triggerHaptic('light');
+                    setSettingsModalOpen(false);
+                  }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={styles.closeIconButton}
                 >
-                  <Text style={styles.closeButtonText}>Kapat</Text>
+                  <Ionicons name="close" size={20} color={COLORS.mutedForeground} />
                 </TouchableOpacity>
               </View>
 
@@ -2214,9 +2749,144 @@ export default function App() {
                   })}
                 </View>
 
+                {/* Senkronizasyon (Google Drive & Cihazlar Arası QR) */}
+                <View style={styles.modalFieldGroup}>
+                  <Text style={styles.fieldLabel}>SENKRONİZASYON & BULUT</Text>
+
+                  {/* Google Drive Kartı */}
+                  <View style={styles.detailRowBox}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="logo-google" size={16} color="#EA4335" />
+                        <Text style={styles.settingTitleText}>Google Drive Eşitleme</Text>
+                      </View>
+                      <Text style={styles.settingSubText}>
+                        {gdriveState.isConnected
+                          ? `Bağlı (${gdriveState.lastSyncTime ? `Son: ${gdriveState.lastSyncTime}` : 'Henüz eşitlenmedi'})`
+                          : 'Kasanızı Google Drive ile güvenle eşitleyin'}
+                      </Text>
+                    </View>
+
+                    <View style={styles.inlinePillGroup}>
+                      {gdriveState.isConnected ? (
+                        <>
+                          <TouchableOpacity
+                            disabled={gdriveState.isSyncing}
+                            onPress={handleSyncWithGoogleDrive}
+                            style={[styles.detailCopyPill, { backgroundColor: COLORS.primary }]}
+                          >
+                            {gdriveState.isSyncing ? (
+                              <ActivityIndicator size="small" color="#FFF" />
+                            ) : (
+                              <>
+                                <Ionicons name="sync" size={12} color="#FFF" style={{ marginRight: 4 }} />
+                                <Text style={[styles.detailCopyPillText, { color: '#FFF' }]}>Eşitle</Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={handleDisconnectGoogleDrive}
+                            style={[styles.detailCopyPill, { borderColor: 'rgba(239, 68, 68, 0.4)' }]}
+                          >
+                            <Text style={[styles.detailCopyPillText, { color: COLORS.dangerRed }]}>Ayrıl</Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        <TouchableOpacity
+                          onPress={() => setShowTokenInput(true)}
+                          style={[styles.detailCopyPill, { backgroundColor: 'rgba(99, 102, 241, 0.15)', borderColor: COLORS.primary }]}
+                        >
+                          <Text style={styles.detailCopyPillText}>Bağlan</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Google Token Giriş Kutusu */}
+                  {showTokenInput && (
+                    <View style={styles.changePwBox}>
+                      <Text style={[styles.fieldLabel, { fontSize: 11 }]}>GOOGLE ACCESS TOKEN</Text>
+                      <TextInput
+                        style={styles.modalInputBox}
+                        placeholder="OAuth Access Token yapıştırın..."
+                        placeholderTextColor={COLORS.subtleText}
+                        value={googleTokenInput}
+                        onChangeText={setGoogleTokenInput}
+                        autoCapitalize="none"
+                      />
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                          onPress={handleSaveGoogleToken}
+                          style={[styles.unlockButton, { flex: 1, height: 40 }]}
+                        >
+                          <Text style={[styles.unlockButtonText, { fontSize: 12 }]}>Bağlantıyı Kaydet</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => setShowTokenInput(false)}
+                          style={[styles.secondaryOutlineButton, { height: 40, paddingHorizontal: 12 }]}
+                        >
+                          <Text style={[styles.secondaryOutlineText, { fontSize: 12 }]}>İptal</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Cihazlar Arası QR Senkronizasyon Kartı */}
+                  <View style={styles.detailRowBox}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="qr-code-outline" size={16} color={COLORS.cyanAccent} />
+                        <Text style={styles.settingTitleText}>Cihazlar Arası QR Eşitleme</Text>
+                      </View>
+                      <Text style={styles.settingSubText}>
+                        Telefon ve bilgisayar arasında doğrudan QR kod ile eşleyin
+                      </Text>
+                    </View>
+                    <View style={styles.inlinePillGroup}>
+                      <TouchableOpacity
+                        onPress={handleOpenQrShare}
+                        style={[styles.detailCopyPill, { backgroundColor: 'rgba(56, 189, 248, 0.12)', borderColor: 'rgba(56, 189, 248, 0.35)' }]}
+                      >
+                        <Ionicons name="qr-code" size={12} color={COLORS.cyanAccent} style={{ marginRight: 4 }} />
+                        <Text style={[styles.detailCopyPillText, { color: COLORS.cyanAccent }]}>QR Göster</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={handleOpenQrScanner}
+                        style={[styles.detailCopyPill, { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.35)' }]}
+                      >
+                        <Ionicons name="scan-outline" size={12} color={COLORS.emerald} style={{ marginRight: 4 }} />
+                        <Text style={[styles.detailCopyPillText, { color: COLORS.emerald }]}>Tara</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Keyra Web PC Bağlantı Kartı */}
+                  <View style={styles.detailRowBox}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="laptop-outline" size={16} color={COLORS.primary} />
+                        <Text style={styles.settingTitleText}>Keyra Web (PC'ye Bağlan)</Text>
+                      </View>
+                      <Text style={styles.settingSubText}>
+                        PC ekranındaki QR'ı okutun, şifreleriniz anında tarayıcıda açılsın
+                      </Text>
+                    </View>
+                    <View style={styles.inlinePillGroup}>
+                      <TouchableOpacity
+                        onPress={handleOpenQrScanner}
+                        style={[styles.detailCopyPill, { backgroundColor: 'rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99, 102, 241, 0.35)' }]}
+                      >
+                        <Ionicons name="scan-outline" size={12} color={COLORS.primary} style={{ marginRight: 4 }} />
+                        <Text style={[styles.detailCopyPillText, { color: COLORS.primary }]}>PC Tara</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
                 {/* Dışa ve İçe Aktarma */}
                 <TouchableOpacity
                   onPress={async () => {
+                    triggerHaptic('light');
                     isSystemDialogOpenRef.current = true;
                     try {
                       await kdbxService.exportCurrentVault();
@@ -2235,6 +2905,7 @@ export default function App() {
                   }}
                   style={styles.unlockButton}
                 >
+                  <Feather name="share-2" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
                   <Text style={styles.unlockButtonText}>
                     .kdbx Dosyasını Dışa Aktar / Paylaş
                   </Text>
@@ -2242,25 +2913,29 @@ export default function App() {
 
                 <TouchableOpacity
                   onPress={async () => {
+                    triggerHaptic('light');
                     setSettingsModalOpen(false);
                     handleLock(true);
                     await handleImportKdbxFile();
                   }}
                   style={styles.secondaryOutlineButton}
                 >
-                  <Text style={styles.secondaryOutlineText}>
+                  <Feather name="folder" size={16} color={COLORS.cyanAccent} style={{ marginRight: 8 }} />
+                  <Text style={[styles.secondaryOutlineText, { color: COLORS.cyanAccent }]}>
                     Cihazdan Başka .kdbx Dosyası Yükle
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={() => {
+                    triggerHaptic('medium');
                     setSettingsModalOpen(false);
                     handleLock(false);
                     setAuthMode('welcome');
                   }}
                   style={styles.deleteEntryButton}
                 >
+                  <Ionicons name="log-out-outline" size={17} color="#FFFFFF" style={{ marginRight: 8 }} />
                   <Text style={styles.deleteEntryButtonText}>
                     Kasayı Kilitle ve Başlangıca Dön
                   </Text>
@@ -2268,6 +2943,112 @@ export default function App() {
               </ScrollView>
             </View>
           </KeyboardAvoidingView>
+        </Modal>
+
+        {/* =========================================================
+           QR KOD İLE PAYLAŞMA & EŞLEME MODALI
+           ========================================================= */}
+        <Modal
+          visible={qrModalOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setQrModalOpen(false)}
+        >
+          <View style={styles.sheetBackdrop}>
+            <View style={[styles.sheetCard, { alignItems: 'center' }]}>
+              <View style={styles.sheetHandle} />
+
+              <View style={[styles.sheetHeader, { width: '100%' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="qr-code" size={20} color={COLORS.cyanAccent} style={{ marginRight: 8 }} />
+                  <Text style={styles.sheetTitle}>Cihaz Eşleme QR Kodu</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setQrModalOpen(false)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={styles.closeIconButton}
+                >
+                  <Ionicons name="close" size={20} color={COLORS.mutedForeground} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={{ fontSize: 13, color: COLORS.mutedForeground, textAlign: 'center', marginVertical: 8 }}>
+                Diğer telefon veya bilgisayarınızdaki Keyra uygulamasıyla bu QR kodu tarayın.
+              </Text>
+
+              {/* QR Kod Çerçevesi */}
+              <View style={styles.qrCodeWrapper}>
+                {qrPayloadString ? (
+                  <QRCode
+                    value={qrPayloadString}
+                    size={210}
+                    color="#000000"
+                    backgroundColor="#FFFFFF"
+                  />
+                ) : (
+                  <ActivityIndicator size="large" color={COLORS.primary} />
+                )}
+              </View>
+
+              {qrPairingPin ? (
+                <View style={styles.pinDisplayBox}>
+                  <Text style={styles.pinDisplayLabel}>GÜVENLİK PIN KODU</Text>
+                  <Text style={styles.pinDisplayText}>{qrPairingPin}</Text>
+                </View>
+              ) : null}
+
+              <TouchableOpacity
+                onPress={() => setQrModalOpen(false)}
+                style={[styles.unlockButton, { width: '100%', marginTop: 14 }]}
+              >
+                <Text style={styles.unlockButtonText}>Tamam</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* =========================================================
+           QR KOD KAMERA İLE TARAMA MODALI
+           ========================================================= */}
+        <Modal
+          visible={scannerModalOpen}
+          animationType="slide"
+          onRequestClose={() => setScannerModalOpen(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: '#000000' }}>
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              facing="back"
+              barcodeScannerSettings={{
+                barcodeTypes: ['qr'],
+              }}
+              onBarcodeScanned={handleBarcodeScanned}
+            />
+
+            {/* Kamera Üzeri Hedef Çerçevesi */}
+            <View style={styles.scannerOverlay}>
+              <View style={styles.scannerHeader}>
+                <Text style={styles.scannerTitle}>Keyra QR Kodunu Hizalayın</Text>
+                <TouchableOpacity
+                  onPress={() => setScannerModalOpen(false)}
+                  style={styles.scannerCloseButton}
+                >
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.scannerTargetBox}>
+                <View style={[styles.scannerCorner, styles.cornerTL]} />
+                <View style={[styles.scannerCorner, styles.cornerTR]} />
+                <View style={[styles.scannerCorner, styles.cornerBL]} />
+                <View style={[styles.scannerCorner, styles.cornerBR]} />
+              </View>
+
+              <Text style={styles.scannerHint}>
+                Diğer cihazın ekranındaki QR kodu karenin içine getirin
+              </Text>
+            </View>
+          </View>
         </Modal>
       </KeyboardAvoidingView>
     </View>
@@ -2313,7 +3094,7 @@ const styles = StyleSheet.create({
   modeSwitchBar: {
     flexDirection: 'row',
     backgroundColor: COLORS.card,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 4,
@@ -2321,8 +3102,9 @@ const styles = StyleSheet.create({
   },
   modeSwitchTab: {
     flex: 1,
+    flexDirection: 'row',
     paddingVertical: 9,
-    borderRadius: 7,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2335,55 +3117,46 @@ const styles = StyleSheet.create({
     color: COLORS.mutedForeground,
   },
   modeSwitchTabTextActive: {
-    color: COLORS.primaryForeground,
+    color: '#FFFFFF',
   },
   lockHero: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    paddingVertical: 26,
+    paddingVertical: 28,
+    gap: 14,
   },
-  lockCircleInner: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
+  logoImageWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 22,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.4)',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  lockBrandWrap: {
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  lockIconShackle: {
-    width: 14,
-    height: 10,
-    borderTopLeftRadius: 7,
-    borderTopRightRadius: 7,
-    borderWidth: 2,
-    borderBottomWidth: 0,
-    borderColor: COLORS.primary,
-    marginBottom: -1,
-  },
-  lockIconBody: {
-    width: 22,
-    height: 17,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  lockIconKeyholeDot: {
-    width: 3,
-    height: 5,
-    borderRadius: 2,
-    backgroundColor: COLORS.primary,
+    gap: 4,
   },
   lockBrandTitle: {
-    fontFamily: MONO_FONT,
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: 1,
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: 0.5,
     color: COLORS.foreground,
+  },
+  lockBrandSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: COLORS.mutedForeground,
+    letterSpacing: 0.2,
   },
   welcomeCard: {
     borderRadius: 12,
@@ -2625,71 +3398,76 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 14,
+    paddingTop: 12,
     paddingBottom: 14,
   },
   dashHeaderLeft: {
     flex: 1,
-    gap: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
     marginRight: 12,
+  },
+  dashLogoMini: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.35)',
+  },
+  dashBrandName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.foreground,
+    letterSpacing: 0.2,
   },
   unlockedText: {
     fontSize: 12,
     color: COLORS.mutedForeground,
   },
   vaultFileName: {
-    fontFamily: MONO_FONT,
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.foreground,
+    fontSize: 11,
+    fontWeight: '500',
+    color: COLORS.subtleText,
+    marginTop: 1,
   },
   dashHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  headerActionButton: {
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+  headerIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerActionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.foreground,
-  },
-  headerLockButton: {
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+  headerLockIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     borderWidth: 1,
-    borderColor: 'rgba(255, 77, 109, 0.35)',
-    backgroundColor: 'rgba(255, 77, 109, 0.08)',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerLockText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.dangerRed,
   },
   searchSection: {
     paddingHorizontal: 20,
   },
   searchBar: {
-    height: 42,
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.card,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
   },
   searchBarInput: {
     flex: 1,
@@ -2708,10 +3486,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: 999,
     borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
   },
   filterPillActive: {
     borderColor: COLORS.primary,
@@ -2726,7 +3506,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   filterPillTextActive: {
-    color: COLORS.primaryForeground,
+    color: '#FFFFFF',
   },
   filterPillTextInactive: {
     color: COLORS.mutedForeground,
@@ -2745,96 +3525,123 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.card,
-    padding: 12,
+    padding: 14,
   },
   monogramBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 13,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   monogramText: {
     fontFamily: MONO_FONT,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
-    color: COLORS.foreground,
   },
   entryCenter: {
     flex: 1,
-    gap: 2,
+    gap: 3,
+  },
+  entryTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   entryTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: COLORS.foreground,
+    maxWidth: '75%',
+  },
+  entryHostBadge: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.cyanAccent,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   entryUsername: {
     fontSize: 12,
     color: COLORS.mutedForeground,
   },
   secretToggleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingTop: 2,
   },
   entrySecretMask: {
     fontFamily: MONO_FONT,
     fontSize: 12,
-    color: COLORS.mutedForeground,
+    color: COLORS.subtleText,
+  },
+  entrySecretMaskRevealed: {
+    color: COLORS.foreground,
   },
   copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     height: 36,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 9,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surface,
-    alignItems: 'center',
     justifyContent: 'center',
   },
   copyButtonActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
   },
   copyButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.foreground,
+    color: COLORS.mutedForeground,
   },
   copyButtonTextActive: {
-    color: COLORS.primaryForeground,
+    color: COLORS.emerald,
   },
   emptySearchBox: {
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.card,
-    padding: 28,
+    padding: 32,
     alignItems: 'center',
-    gap: 12,
-    marginTop: 8,
+    gap: 6,
+    marginTop: 12,
   },
   emptySearchTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.foreground,
+  },
+  emptySearchSubtitle: {
+    fontSize: 12,
     color: COLORS.mutedForeground,
+    textAlign: 'center',
+    marginBottom: 12,
   },
   emptyAddBtn: {
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
     backgroundColor: COLORS.primary,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 11,
   },
   emptyAddBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: COLORS.primaryForeground,
+    color: '#FFFFFF',
   },
 
   // --- FAB ---
@@ -2842,78 +3649,105 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 20,
     bottom: 24,
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 5,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   fabIcon: {
     fontSize: 28,
-    color: COLORS.primaryForeground,
+    color: '#FFFFFF',
     lineHeight: 30,
   },
 
   // --- MODALLAR ---
   sheetBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.78)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'flex-end',
   },
   sheetCard: {
-    maxHeight: '90%',
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    maxHeight: '92%',
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
     borderTopWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     backgroundColor: COLORS.card,
     paddingHorizontal: 22,
     paddingTop: 12,
-    paddingBottom: 30,
+    paddingBottom: 34,
     gap: 14,
   },
   sheetHandle: {
     alignSelf: 'center',
-    width: 36,
+    width: 38,
     height: 4,
     borderRadius: 2,
-    backgroundColor: COLORS.border,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    marginBottom: 4,
   },
   sheetHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  detailTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  detailMonogramBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailMonogramText: {
+    fontFamily: MONO_FONT,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  detailCategoryLabel: {
+    fontSize: 11,
+    color: COLORS.mutedForeground,
+    marginTop: 2,
   },
   sheetTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.foreground,
   },
-  closeButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+  closeIconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-  },
-  closeButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.mutedForeground,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   detailRowBox: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
-    padding: 12,
+    backgroundColor: COLORS.surface,
+    padding: 13,
   },
   detailValueMono: {
     fontFamily: MONO_FONT,
@@ -2921,14 +3755,22 @@ const styles = StyleSheet.create({
     color: COLORS.foreground,
     marginTop: 4,
   },
+  strengthMeterContainer: {
+    flexDirection: 'row',
+    gap: 4,
+    height: 3,
+    marginTop: 6,
+  },
   inlinePillGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
   detailCopyPill: {
-    borderRadius: 6,
-    backgroundColor: COLORS.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 7,
+    backgroundColor: COLORS.surfaceLight,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 10,
@@ -2941,13 +3783,26 @@ const styles = StyleSheet.create({
   },
   detailActionButtons: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
+  deleteIconButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 12,
+    backgroundColor: 'rgba(239, 68, 68, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   secondaryOutlineButton: {
-    height: 46,
-    borderRadius: 10,
+    height: 48,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2958,10 +3813,11 @@ const styles = StyleSheet.create({
   },
   deleteEntryButton: {
     height: 50,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 77, 109, 0.4)',
-    backgroundColor: 'rgba(255, 77, 109, 0.08)',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2974,11 +3830,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   modalInputBox: {
-    height: 44,
-    borderRadius: 10,
+    height: 46,
+    borderRadius: 11,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.surface,
     paddingHorizontal: 14,
     fontSize: 14,
     color: COLORS.foreground,
@@ -3000,12 +3856,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   genOptionPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 7,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.surface,
   },
   genOptionPillActive: {
     borderColor: COLORS.primary,
@@ -3018,7 +3874,7 @@ const styles = StyleSheet.create({
     color: COLORS.mutedForeground,
   },
   genOptionPillTextActive: {
-    color: COLORS.primaryForeground,
+    color: '#FFFFFF',
   },
   settingTitleText: {
     fontSize: 13,
@@ -3033,10 +3889,130 @@ const styles = StyleSheet.create({
   changePwBox: {
     gap: 10,
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.surface,
     marginTop: 4,
+  },
+  qrCodeWrapper: {
+    backgroundColor: '#FFFFFF',
+    padding: 18,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+    alignSelf: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  pinDisplayBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.25)',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    marginTop: 6,
+  },
+  pinDisplayLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: COLORS.primary,
+    marginBottom: 4,
+  },
+  pinDisplayText: {
+    fontFamily: MONO_FONT,
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: 6,
+    color: COLORS.foreground,
+  },
+  scannerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  scannerHeader: {
+    position: 'absolute',
+    top: Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 24) + 16 : 56,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 10,
+  },
+  scannerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  scannerCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scannerTargetBox: {
+    width: 250,
+    height: 250,
+    position: 'relative',
+    backgroundColor: 'transparent',
+  },
+  scannerCorner: {
+    position: 'absolute',
+    width: 32,
+    height: 32,
+    borderColor: COLORS.primary,
+  },
+  cornerTL: {
+    top: 0,
+    left: 0,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 12,
+  },
+  cornerTR: {
+    top: 0,
+    right: 0,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderTopRightRadius: 12,
+  },
+  cornerBL: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderBottomLeftRadius: 12,
+  },
+  cornerBR: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderBottomRightRadius: 12,
+  },
+  scannerHint: {
+    marginTop: 28,
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.85)',
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
 });

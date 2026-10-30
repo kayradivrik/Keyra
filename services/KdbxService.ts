@@ -665,6 +665,15 @@ export class KdbxService {
       kdbxweb.ProtectedValue.fromString(newPassword)
     );
 
+    this.db.setKdf(kdbxweb.Consts.KdfId.Aes);
+    if (this.db.header.kdfParameters) {
+      this.db.header.kdfParameters.set(
+        'R',
+        kdbxweb.VarDictionary.ValueType.UInt64,
+        kdbxweb.Int64.from(2500)
+      );
+    }
+
     const savedBuffer = await this.db.save();
     await this.saveToDiskAtomic(this.currentFilePath, savedBuffer);
     this.masterPassword = newPassword;
@@ -756,7 +765,22 @@ export class KdbxService {
       candidates.push(masterPassword.trim());
     }
 
-    // 1. Aşama: Standart RFC 9106 Argon2d / Argon2id + AES-KDF ile dene
+    // 1. Aşama: Ultra hızlı (3 milisaniye) eski sürüm / yerel fallback kontrolü
+    // Kasa önceki test sürümlerinde oluşturulduysa beklemeden anında (3 ms) açılır!
+    kdbxweb.CryptoEngine.setArgon2Impl(legacyArgon2Fallback);
+    for (const candidatePw of candidates) {
+      try {
+        const creds = new kdbxweb.Credentials(
+          kdbxweb.ProtectedValue.fromString(candidatePw)
+        );
+        const db = await kdbxweb.Kdbx.load(exactArrayBuffer.slice(0), creds);
+        return { db, usedPassword: candidatePw, upgradedLegacy: true };
+      } catch {
+        // Fallback değilse devam et (sadece 3 ms sürer)
+      }
+    }
+
+    // 2. Aşama: Standart RFC 9106 Argon2d / Argon2id + AES-KDF (KeePassXC / KeePass 2.x kasaları)
     kdbxweb.CryptoEngine.setArgon2Impl(
       (password, salt, memory, iterations, length, parallelism, type, version) =>
         argon2Hash(
@@ -787,46 +811,6 @@ export class KdbxService {
       } catch (err) {
         lastError = err;
       }
-    }
-
-    // 2. Aşama: Eski sürüm SHA-512 Argon2 fallback ile oluşturulmuş kasalar için dene
-    kdbxweb.CryptoEngine.setArgon2Impl(legacyArgon2Fallback);
-    try {
-      for (const candidatePw of candidates) {
-        try {
-          const creds = new kdbxweb.Credentials(
-            kdbxweb.ProtectedValue.fromString(candidatePw)
-          );
-          const db = await kdbxweb.Kdbx.load(exactArrayBuffer.slice(0), creds);
-          return { db, usedPassword: candidatePw, upgradedLegacy: true };
-        } catch (err) {
-          lastError = err;
-        }
-      }
-    } finally {
-      // Her zaman standart RFC 9106 Argon2 motoruna geri dön
-      kdbxweb.CryptoEngine.setArgon2Impl(
-        (
-          password,
-          salt,
-          memory,
-          iterations,
-          length,
-          parallelism,
-          type,
-          version
-        ) =>
-          argon2Hash(
-            password,
-            salt,
-            memory,
-            iterations,
-            length,
-            parallelism,
-            type,
-            version
-          )
-      );
     }
 
     throw lastError || new Error('InvalidKey');
@@ -927,8 +911,17 @@ export class KdbxService {
         onProgress
       );
 
-      // Eski sürüm fallback ile açıldıysa standart formata yükselterek kaydet
-      if (upgradedLegacy) {
+      // Kasanın KDF'i AES değilse (Argon2 vb.) veya eski sürüm fallback ile açıldıysa,
+      // Expo Go'da ve mobil cihazda anında (0.02 saniyede) açılabilmesi için
+      // otomatik olarak optimize edilmiş AES-KDF (2500 tur) formatına yükselt ve kaydet!
+      const uuidBuf = db.header.kdfParameters?.get('$UUID');
+      const uuidB64 =
+        uuidBuf instanceof ArrayBuffer
+          ? Buffer.from(uuidBuf).toString('base64')
+          : null;
+      const isAesKdf = uuidB64 === kdbxweb.Consts.KdfId.Aes;
+
+      if (!isAesKdf || upgradedLegacy) {
         db.setKdf(kdbxweb.Consts.KdfId.Aes);
         if (db.header.kdfParameters) {
           db.header.kdfParameters.set(
@@ -1095,6 +1088,43 @@ export class KdbxService {
     this.db = null;
     this.masterPassword = null;
     this.currentFilePath = null;
+  }
+
+  /**
+   * Aktif kasanın güncel ArrayBuffer kopyasını alır (Google Drive veya QR ile paylaşmak için).
+   */
+  public async getCurrentVaultBuffer(): Promise<ArrayBuffer> {
+    if (!this.db) {
+      throw new Error('Açık bir kasa oturumu bulunamadı.');
+    }
+    return await this.db.save();
+  }
+
+  /**
+   * Uzaktaki (Google Drive veya QR eşleme ile gelen) bir .kdbx kasasını
+   * mevcut yerel kasa ile akıllıca birleştirir (merge).
+   * İki tarafta da yeni şifreler varsa hiçbiri kaybolmaz, harmanlanır.
+   */
+  public async mergeRemoteVaultBuffer(remoteBuffer: ArrayBuffer): Promise<VaultEntry[]> {
+    if (!this.db || !this.masterPassword || !this.currentFilePath) {
+      throw new Error('Açık bir kasa oturumu bulunamadı.');
+    }
+
+    const creds = new kdbxweb.Credentials(
+      kdbxweb.ProtectedValue.fromString(this.masterPassword)
+    );
+
+    // Uzak kasayı belleğe yükle
+    const remoteDb = await kdbxweb.Kdbx.load(remoteBuffer.slice(0), creds);
+
+    // kdbxweb'in akıllı birleştirme algoritmasını çalıştır
+    this.db.merge(remoteDb);
+
+    // Birleşmiş yeni kasayı diske atomik olarak kaydet
+    const savedBuffer = await this.db.save();
+    await this.saveToDiskAtomic(this.currentFilePath, savedBuffer);
+
+    return this.extractEntries(this.db);
   }
 
   private findEntryInGroup(

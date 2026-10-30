@@ -581,7 +581,9 @@ export async function argon2Hash(
               const pct = Math.min(99, Math.round((stepCounter / totalSteps) * 100));
               onProgress(pct);
             }
-            await new Promise<void>((r) => setTimeout(r, 0));
+            await new Promise<void>((r) =>
+              typeof setImmediate === 'function' ? setImmediate(r) : setTimeout(r, 0)
+            );
           }
         }
       }

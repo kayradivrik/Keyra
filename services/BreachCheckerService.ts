@@ -54,3 +54,4 @@ class BreachCheckerService {
 }
 
 export const breachCheckerService = new BreachCheckerService();
+

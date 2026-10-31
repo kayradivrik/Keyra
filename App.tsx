@@ -2033,7 +2033,7 @@ export default function App() {
                       }}
                       style={[styles.unlockButton, { flex: 1 }]}
                     >
-                      <Feather name="edit-2" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
+                      <Feather name="edit-2" size={16} color={COLORS.primaryForeground} style={{ marginRight: 8 }} />
                       <Text style={styles.unlockButtonText}>Kaydı Düzenle</Text>
                     </TouchableOpacity>
 
@@ -2045,7 +2045,7 @@ export default function App() {
                       }}
                       style={styles.deleteIconButton}
                     >
-                      <Feather name="trash-2" size={18} color="#FFFFFF" />
+                      <Feather name="trash-2" size={18} color={COLORS.dangerRed} />
                     </TouchableOpacity>
                   </View>
                 </>
@@ -2345,7 +2345,7 @@ export default function App() {
                           <Ionicons
                             name={item.icon as any}
                             size={13}
-                            color={active ? '#FFFFFF' : COLORS.mutedForeground}
+                            color={active ? '#08090C' : COLORS.mutedForeground}
                             style={{ marginRight: 5 }}
                           />
                           <Text
@@ -2373,7 +2373,7 @@ export default function App() {
                   }}
                   style={styles.unlockButton}
                 >
-                  <Ionicons name="checkmark-sharp" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Ionicons name="checkmark-sharp" size={18} color={COLORS.primaryForeground} style={{ marginRight: 6 }} />
                   <Text style={styles.unlockButtonText}>
                     {isSaving
                       ? 'Kaydediliyor…'

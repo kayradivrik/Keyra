@@ -340,6 +340,7 @@ export default function App() {
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const [passwordFocused, setPasswordFocused] = useState<boolean>(false);
+  const isScanningRef = useRef<boolean>(false);
 
   const triggerShake = useCallback(() => {
     shakeAnim.setValue(0);
@@ -490,7 +491,8 @@ export default function App() {
           nextState === 'background' &&
           vaultState.isUnlocked &&
           autoLockOnBackground &&
-          !isSystemDialogOpenRef.current
+          !isSystemDialogOpenRef.current &&
+          !scannerModalOpen
         ) {
           handleLock(true);
         }
@@ -500,7 +502,7 @@ export default function App() {
     return () => {
       subscription.remove();
     };
-  }, [vaultState.isUnlocked, autoLockOnBackground, handleLock]);
+  }, [vaultState.isUnlocked, autoLockOnBackground, handleLock, scannerModalOpen]);
 
   // 30 Saniyede Otomatik Temizlenen Pano Kopyalama Fonksiyonu
   const handleCopyText = useCallback(async (value: string, label: string) => {
@@ -1124,38 +1126,76 @@ export default function App() {
     }
   };
 
+  // QR Kod Tarama Ekranını Güvenle Kapat
+  const handleCloseScanner = useCallback(() => {
+    setScannerModalOpen(false);
+    isScanningRef.current = false;
+    setTimeout(() => {
+      isSystemDialogOpenRef.current = false;
+    }, 1000);
+  }, []);
+
   // QR Kod Tarama Ekranını Aç
   const handleOpenQrScanner = async () => {
     triggerHaptic('light');
-    if (!cameraPermission?.granted) {
-      const res = await requestCameraPermission();
-      if (!res.granted) {
-        Alert.alert('Kamera İzni', 'QR kod taramak için kamera izni gerekiyor.');
-        return;
+    isSystemDialogOpenRef.current = true;
+    isScanningRef.current = false;
+    try {
+      if (!cameraPermission?.granted) {
+        const res = await requestCameraPermission();
+        if (!res.granted) {
+          isSystemDialogOpenRef.current = false;
+          Alert.alert('Kamera İzni', 'QR kod taramak için kamera izni gerekiyor.');
+          return;
+        }
       }
+      setScannerModalOpen(true);
+    } catch {
+      isSystemDialogOpenRef.current = false;
     }
-    setScannerModalOpen(true);
   };
 
   // Kamera QR Okuduğunda Çalışan Fonksiyon
   const handleBarcodeScanned = async ({ data }: { data: string }) => {
-    if (!scannerModalOpen) return;
+    if (isScanningRef.current) return;
+    isScanningRef.current = true;
     setScannerModalOpen(false);
+
+    // Activity / Modal geçişinde otomatik arka plan kilidinin tetiklenmesini engelle
+    setTimeout(() => {
+      isSystemDialogOpenRef.current = false;
+      isScanningRef.current = false;
+    }, 2500);
 
     // 1. Önce Keyra Web PC eşleşmesi mi kontrol et (WhatsApp Web Tarzı)
     const webPayload = webConnectService.parseWebPairingQr(data);
     if (webPayload) {
       triggerHaptic('medium');
       try {
+        const entriesToSend =
+          vaultState.entries && vaultState.entries.length > 0
+            ? vaultState.entries
+            : kdbxService.getLoadedEntries();
+
+        let rawKdbxB64: string | undefined = undefined;
+        try {
+          const buf = await kdbxService.getCurrentVaultBuffer();
+          rawKdbxB64 = Buffer.from(buf).toString('base64');
+        } catch {
+          // İsteğe bağlı
+        }
+
         await webConnectService.sendVaultToWeb(
           webPayload.sessionId,
           webPayload.keyHex,
           vaultState.fileName,
-          vaultState.entries
+          entriesToSend,
+          rawKdbxB64
         );
         triggerHaptic('success');
         showToast('Bilgisayara bağlandı! Şifreleriniz tarayıcıda açıldı.');
-      } catch {
+      } catch (err: unknown) {
+        console.error('sendVaultToWeb error:', err);
         triggerHaptic('error');
         Alert.alert(
           'Bağlantı Hatası',
@@ -3000,7 +3040,7 @@ export default function App() {
         <Modal
           visible={scannerModalOpen}
           animationType="slide"
-          onRequestClose={() => setScannerModalOpen(false)}
+          onRequestClose={handleCloseScanner}
         >
           <View style={{ flex: 1, backgroundColor: '#000000' }}>
             <CameraView
@@ -3017,7 +3057,7 @@ export default function App() {
               <View style={styles.scannerHeader}>
                 <Text style={styles.scannerTitle}>Keyra QR Kodunu Hizalayın</Text>
                 <TouchableOpacity
-                  onPress={() => setScannerModalOpen(false)}
+                  onPress={handleCloseScanner}
                   style={styles.scannerCloseButton}
                 >
                   <Ionicons name="close" size={24} color="#FFFFFF" />

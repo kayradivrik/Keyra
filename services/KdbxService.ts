@@ -1101,6 +1101,14 @@ export class KdbxService {
   }
 
   /**
+   * Aktif açık kasadaki mevcut şifre kayıtlarını döndürür.
+   */
+  public getLoadedEntries(): VaultEntry[] {
+    if (!this.db) return [];
+    return this.extractEntries(this.db);
+  }
+
+  /**
    * Uzaktaki (Google Drive veya QR eşleme ile gelen) bir .kdbx kasasını
    * mevcut yerel kasa ile akıllıca birleştirir (merge).
    * İki tarafta da yeni şifreler varsa hiçbiri kaybolmaz, harmanlanır.

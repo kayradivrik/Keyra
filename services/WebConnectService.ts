@@ -59,13 +59,15 @@ class WebConnectService {
     sessionId: string,
     keyHex: string,
     vaultFileName: string,
-    entries: VaultEntry[]
+    entries: VaultEntry[],
+    kdbxBase64?: string
   ): Promise<boolean> {
     try {
       // 1. Transfer verisini hazırla (PC'de görüntüleme ve tek tıkla kopyalama için)
       const transferData: WebTransferPayload = {
         vaultFileName,
         entries,
+        kdbxBase64,
         syncedAt: new Date().toISOString(),
       };
 

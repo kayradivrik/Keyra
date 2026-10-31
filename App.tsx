@@ -26,6 +26,7 @@ import {
   Linking,
   StatusBar as RNStatusBar,
   Image,
+  Switch,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -2422,437 +2423,430 @@ export default function App() {
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ gap: 14 }}
+                contentContainerStyle={{ gap: 18, paddingBottom: 24 }}
               >
-                {/* Kullanıcı Adı */}
-                <View style={styles.modalFieldGroup}>
-                  <Text style={styles.fieldLabel}>ADINIZ</Text>
-                  <View style={styles.detailActionButtons}>
-                    <TextInput
-                      style={[styles.modalInputBox, { flex: 1 }]}
-                      value={ownerNameInput}
-                      onChangeText={setOwnerNameInput}
-                      placeholder="Adınız"
-                      placeholderTextColor={COLORS.mutedForeground}
-                    />
-                    <TouchableOpacity
-                      onPress={async () => {
-                        const clean = ownerNameInput.trim();
-                        await kdbxService.saveProfile({ ownerName: clean });
-                        setVaultState((prev) => ({
-                          ...prev,
-                          ownerName: clean,
-                        }));
-                        showToast('Adınız kaydedildi');
-                      }}
-                      style={[
-                        styles.detailCopyPill,
-                        { justifyContent: 'center', paddingHorizontal: 14 },
-                      ]}
-                    >
-                      <Text style={styles.detailCopyPillText}>Kaydet</Text>
-                    </TouchableOpacity>
+                {/* GRUP 1: PROFİL */}
+                <View style={styles.settingsSection}>
+                  <Text style={styles.settingsSectionHeader}>PROFİL</Text>
+                  <View style={styles.settingsGroupCard}>
+                    <View style={styles.settingsRow}>
+                      <View style={[styles.settingsIconBox, { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]}>
+                        <Ionicons name="person" size={15} color="#FFFFFF" />
+                      </View>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={styles.settingRowTitle}>Kasa Sahibi</Text>
+                        <TextInput
+                          style={styles.settingsInlineInput}
+                          value={ownerNameInput}
+                          onChangeText={setOwnerNameInput}
+                          placeholder="Adınızı belirleyin"
+                          placeholderTextColor={COLORS.subtleText}
+                        />
+                      </View>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={async () => {
+                          triggerHaptic('light');
+                          const clean = ownerNameInput.trim();
+                          await kdbxService.saveProfile({ ownerName: clean });
+                          setVaultState((prev) => ({
+                            ...prev,
+                            ownerName: clean,
+                          }));
+                          showToast('Adınız kaydedildi');
+                        }}
+                        style={styles.settingsActionPill}
+                      >
+                        <Text style={styles.settingsActionPillText}>Kaydet</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
 
-                {/* Güvenlik Seçenekleri (Arka Planda Otomatik Kilitle & Biyometrik) */}
-                <View style={styles.modalFieldGroup}>
-                  <Text style={styles.fieldLabel}>GÜVENLİK</Text>
-
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={async () => {
-                      const next = !autoLockOnBackground;
-                      setAutoLockOnBackground(next);
-                      await kdbxService.saveProfile({
-                        autoLockOnBackground: next,
-                      });
-                      showToast(
-                        next
-                          ? 'Arka planda otomatik kilit açıldı'
-                          : 'Arka planda otomatik kilit kapatıldı'
-                      );
-                    }}
-                    style={styles.detailRowBox}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.settingTitleText}>
-                        Arka Planda Otomatik Kilitle
-                      </Text>
-                      <Text style={styles.settingSubText}>
-                        Uygulamadan çıkıldığında kasayı anında kilitler
-                      </Text>
+                {/* GRUP 2: GÜVENLİK */}
+                <View style={styles.settingsSection}>
+                  <Text style={styles.settingsSectionHeader}>GÜVENLİK</Text>
+                  <View style={styles.settingsGroupCard}>
+                    {/* Arka Planda Kilitle */}
+                    <View style={styles.settingsRow}>
+                      <View style={[styles.settingsIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
+                        <Ionicons name="shield-checkmark" size={16} color={COLORS.emerald} />
+                      </View>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={styles.settingRowTitle}>Arka Planda Kilitle</Text>
+                        <Text style={styles.settingRowSubtitle}>Uygulamadan çıkıldığında anında kilitler</Text>
+                      </View>
+                      <Switch
+                        value={autoLockOnBackground}
+                        onValueChange={async (next) => {
+                          triggerHaptic('light');
+                          setAutoLockOnBackground(next);
+                          await kdbxService.saveProfile({ autoLockOnBackground: next });
+                          showToast(next ? 'Arka planda kilitleme aktif' : 'Arka planda kilitleme kapatıldı');
+                        }}
+                        trackColor={{ false: 'rgba(255, 255, 255, 0.1)', true: '#FFFFFF' }}
+                        thumbColor={autoLockOnBackground ? '#08090C' : '#8E92A4'}
+                      />
                     </View>
-                    <View
-                      style={[
-                        styles.detailCopyPill,
-                        autoLockOnBackground && styles.filterPillActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.detailCopyPillText,
-                          autoLockOnBackground && styles.filterPillTextActive,
-                        ]}
-                      >
-                        {autoLockOnBackground ? 'Açık' : 'Kapalı'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
 
-                  {biometricSupported && (
+                    {biometricSupported && (
+                      <>
+                        <View style={styles.settingsDivider} />
+                        {/* Biyometrik Kilit */}
+                        <View style={styles.settingsRow}>
+                          <View style={[styles.settingsIconBox, { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]}>
+                            <Ionicons name="finger-print" size={16} color="#FFFFFF" />
+                          </View>
+                          <View style={{ flex: 1, marginRight: 8 }}>
+                            <Text style={styles.settingRowTitle}>Biyometrik Kilit</Text>
+                            <Text style={styles.settingRowSubtitle}>Parmak izi veya yüz tanıma ile aç</Text>
+                          </View>
+                          <Switch
+                            value={biometricEnabledForActive}
+                            onValueChange={async (next) => {
+                              triggerHaptic('light');
+                              isSystemDialogOpenRef.current = true;
+                              try {
+                                const result = await kdbxService.setBiometricForCurrentVault(next);
+                                setBiometricEnabledForActive(result);
+                                showToast(result ? 'Biyometrik kilit açıldı' : 'Biyometrik kilit kapatıldı');
+                              } catch (err: unknown) {
+                                Alert.alert('Biyometrik Giriş', err instanceof Error ? err.message : 'İşlem tamamlanamadı.');
+                              } finally {
+                                setTimeout(() => { isSystemDialogOpenRef.current = false; }, 600);
+                              }
+                            }}
+                            trackColor={{ false: 'rgba(255, 255, 255, 0.1)', true: '#FFFFFF' }}
+                            thumbColor={biometricEnabledForActive ? '#08090C' : '#8E92A4'}
+                          />
+                        </View>
+                      </>
+                    )}
+
+                    <View style={styles.settingsDivider} />
+
+                    {/* Ana Şifre Değiştir */}
                     <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={async () => {
-                        isSystemDialogOpenRef.current = true;
-                        try {
-                          const next = !biometricEnabledForActive;
-                          const result =
-                            await kdbxService.setBiometricForCurrentVault(next);
-                          setBiometricEnabledForActive(result);
-                          showToast(
-                            result
-                              ? 'Biyometrik giriş etkinleştirildi'
-                              : 'Biyometrik giriş kaldırıldı'
-                          );
-                        } catch (err: unknown) {
-                          Alert.alert(
-                            'Biyometrik Giriş',
-                            err instanceof Error
-                              ? err.message
-                              : 'İşlem tamamlanamadı.'
-                          );
-                        } finally {
-                          setTimeout(() => {
-                            isSystemDialogOpenRef.current = false;
-                          }, 600);
-                        }
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        triggerHaptic('light');
+                        setChangePwSectionOpen((v) => !v);
                       }}
-                      style={styles.detailRowBox}
+                      style={styles.settingsRow}
                     >
+                      <View style={[styles.settingsIconBox, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
+                        <Ionicons name="key" size={16} color={COLORS.amber} />
+                      </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.settingTitleText}>
-                          Parmak İzi / Yüz Tanıma
-                        </Text>
-                        <Text style={styles.settingSubText}>
-                          {vaultState.fileName} için hızlı kilit açma
-                        </Text>
+                        <Text style={styles.settingRowTitle}>Kasa Ana Şifresi</Text>
+                        <Text style={styles.settingRowSubtitle}>Kasanın ana şifresini güncelleyin</Text>
                       </View>
-                      <View
-                        style={[
-                          styles.detailCopyPill,
-                          biometricEnabledForActive && styles.filterPillActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.detailCopyPillText,
-                            biometricEnabledForActive &&
-                              styles.filterPillTextActive,
-                          ]}
-                        >
-                          {biometricEnabledForActive ? 'Açık' : 'Kapalı'}
-                        </Text>
-                      </View>
+                      <Ionicons
+                        name={changePwSectionOpen ? 'chevron-down' : 'chevron-forward'}
+                        size={16}
+                        color={COLORS.mutedForeground}
+                      />
                     </TouchableOpacity>
-                  )}
+
+                    {changePwSectionOpen && (
+                      <View style={styles.changePwExpandBox}>
+                        <TextInput
+                          style={styles.settingsInputBox}
+                          placeholder="Mevcut ana şifreniz"
+                          placeholderTextColor={COLORS.subtleText}
+                          secureTextEntry
+                          value={currentMasterPwInput}
+                          onChangeText={setCurrentMasterPwInput}
+                          autoCapitalize="none"
+                        />
+                        <TextInput
+                          style={styles.settingsInputBox}
+                          placeholder="Yeni ana şifre"
+                          placeholderTextColor={COLORS.subtleText}
+                          secureTextEntry
+                          value={newMasterPwInput}
+                          onChangeText={setNewMasterPwInput}
+                          autoCapitalize="none"
+                        />
+                        <TextInput
+                          style={styles.settingsInputBox}
+                          placeholder="Yeni ana şifre tekrarı"
+                          placeholderTextColor={COLORS.subtleText}
+                          secureTextEntry
+                          value={confirmNewMasterPwInput}
+                          onChangeText={setConfirmNewMasterPwInput}
+                          autoCapitalize="none"
+                        />
+                        <TouchableOpacity
+                          activeOpacity={0.85}
+                          onPress={handleChangeMasterPassword}
+                          style={styles.settingsSubmitButton}
+                        >
+                          <Text style={styles.settingsSubmitButtonText}>Yeni Ana Şifreyi Kaydet</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
                 </View>
 
-                {/* Kasa Ana Şifresini Değiştirme Bölümü */}
-                <View style={styles.modalFieldGroup}>
-                  <TouchableOpacity
-                    onPress={() => setChangePwSectionOpen((v) => !v)}
-                    style={styles.secondaryOutlineButton}
-                  >
-                    <Text style={styles.secondaryOutlineText}>
-                      {changePwSectionOpen
-                        ? 'Ana Şifre Değiştirmeyi Kapat'
-                        : 'Kasa Ana Şifresini Değiştir'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {changePwSectionOpen && (
-                    <View style={styles.changePwBox}>
-                      <TextInput
-                        style={styles.modalInputBox}
-                        placeholder="Mevcut ana şifreniz"
-                        placeholderTextColor={COLORS.mutedForeground}
-                        secureTextEntry
-                        value={currentMasterPwInput}
-                        onChangeText={setCurrentMasterPwInput}
-                        autoCapitalize="none"
-                      />
-                      <TextInput
-                        style={styles.modalInputBox}
-                        placeholder="Yeni ana şifre"
-                        placeholderTextColor={COLORS.mutedForeground}
-                        secureTextEntry
-                        value={newMasterPwInput}
-                        onChangeText={setNewMasterPwInput}
-                        autoCapitalize="none"
-                      />
-                      <TextInput
-                        style={styles.modalInputBox}
-                        placeholder="Yeni ana şifre tekrarı"
-                        placeholderTextColor={COLORS.mutedForeground}
-                        secureTextEntry
-                        value={confirmNewMasterPwInput}
-                        onChangeText={setConfirmNewMasterPwInput}
-                        autoCapitalize="none"
-                      />
+                {/* GRUP 3: SENKRONİZASYON & BULUT */}
+                <View style={styles.settingsSection}>
+                  <Text style={styles.settingsSectionHeader}>SENKRONİZASYON & BULUT</Text>
+                  <View style={styles.settingsGroupCard}>
+                    {/* Keyra Web PC Bağlantısı */}
+                    <View style={styles.settingsRow}>
+                      <View style={[styles.settingsIconBox, { backgroundColor: 'rgba(56, 189, 248, 0.12)' }]}>
+                        <Ionicons name="laptop-outline" size={16} color={COLORS.cyanAccent} />
+                      </View>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={styles.settingRowTitle}>Keyra Web (PC)</Text>
+                        <Text style={styles.settingRowSubtitle}>PC ekranındaki QR'ı tara, tarayıcıda aç</Text>
+                      </View>
                       <TouchableOpacity
-                        onPress={handleChangeMasterPassword}
-                        style={styles.unlockButton}
+                        activeOpacity={0.7}
+                        onPress={handleOpenQrScanner}
+                        style={styles.settingsActionPill}
                       >
-                        <Text style={styles.unlockButtonText}>
-                          Yeni Ana Şifreyi Kaydet
-                        </Text>
+                        <Ionicons name="scan-outline" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
+                        <Text style={styles.settingsActionPillText}>Tara</Text>
                       </TouchableOpacity>
                     </View>
-                  )}
-                </View>
 
-                {/* Cihazdaki Kayıtlı Kasalar ve Silme */}
-                <View style={styles.modalFieldGroup}>
-                  <Text style={styles.fieldLabel}>CİHAZDAKİ KASALAR</Text>
-                  {Array.from(
-                    new Set([vaultState.fileName, ...knownVaults])
-                  ).map((vaultFile) => {
-                    const isCurrent = vaultFile === vaultState.fileName;
-                    return (
-                      <View key={vaultFile} style={styles.detailRowBox}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.settingTitleText}>
-                            {vaultFile} {isCurrent ? '(Aktif)' : ''}
-                          </Text>
-                        </View>
-                        <View style={styles.inlinePillGroup}>
-                          {!isCurrent && (
-                            <TouchableOpacity
-                              onPress={async () => {
-                                setSettingsModalOpen(false);
-                                handleLock(true);
-                                await handleSelectKnownVault(vaultFile);
-                                setAuthMode('unlock');
-                              }}
-                              style={styles.detailCopyPill}
-                            >
-                              <Text style={styles.detailCopyPillText}>Geç</Text>
-                            </TouchableOpacity>
-                          )}
-                          <TouchableOpacity
-                            onPress={() => handleDeleteVaultFile(vaultFile)}
-                            style={[
-                              styles.detailCopyPill,
-                              { borderColor: 'rgba(255, 77, 109, 0.4)' },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.detailCopyPillText,
-                                { color: COLORS.dangerRed },
-                              ]}
-                            >
-                              Sil
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
+                    <View style={styles.settingsDivider} />
+
+                    {/* Cihazlar Arası QR */}
+                    <View style={styles.settingsRow}>
+                      <View style={[styles.settingsIconBox, { backgroundColor: 'rgba(148, 163, 184, 0.12)' }]}>
+                        <Ionicons name="qr-code-outline" size={16} color="#CBD5E1" />
                       </View>
-                    );
-                  })}
-                </View>
-
-                {/* Senkronizasyon (Google Drive & Cihazlar Arası QR) */}
-                <View style={styles.modalFieldGroup}>
-                  <Text style={styles.fieldLabel}>SENKRONİZASYON & BULUT</Text>
-
-                  {/* Google Drive Kartı */}
-                  <View style={styles.detailRowBox}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Ionicons name="logo-google" size={16} color="#EA4335" />
-                        <Text style={styles.settingTitleText}>Google Drive Eşitleme</Text>
+                      <View style={{ flex: 1, marginRight: 6 }}>
+                        <Text style={styles.settingRowTitle}>Cihazlar Arası QR</Text>
+                        <Text style={styles.settingRowSubtitle}>Telefonlar arasında doğrudan aktarın</Text>
                       </View>
-                      <Text style={styles.settingSubText}>
-                        {gdriveState.isConnected
-                          ? `Bağlı (${gdriveState.lastSyncTime ? `Son: ${gdriveState.lastSyncTime}` : 'Henüz eşitlenmedi'})`
-                          : 'Kasanızı Google Drive ile güvenle eşitleyin'}
-                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={handleOpenQrShare}
+                          style={[styles.settingsActionPill, { paddingHorizontal: 10 }]}
+                        >
+                          <Text style={styles.settingsActionPillText}>Göster</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={handleOpenQrScanner}
+                          style={[styles.settingsActionPill, { paddingHorizontal: 10 }]}
+                        >
+                          <Text style={styles.settingsActionPillText}>Tara</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
 
-                    <View style={styles.inlinePillGroup}>
+                    <View style={styles.settingsDivider} />
+
+                    {/* Google Drive Eşitleme */}
+                    <View style={styles.settingsRow}>
+                      <View style={[styles.settingsIconBox, { backgroundColor: 'rgba(234, 67, 53, 0.12)' }]}>
+                        <Ionicons name="logo-google" size={16} color="#EA4335" />
+                      </View>
+                      <View style={{ flex: 1, marginRight: 6 }}>
+                        <Text style={styles.settingRowTitle}>Google Drive</Text>
+                        <Text style={styles.settingRowSubtitle} numberOfLines={1}>
+                          {gdriveState.isConnected
+                            ? `Bağlı (${gdriveState.lastSyncTime ? gdriveState.lastSyncTime : 'Eşitlenmedi'})`
+                            : 'Kasanızı Google Drive ile eşitleyin'}
+                        </Text>
+                      </View>
                       {gdriveState.isConnected ? (
-                        <>
+                        <View style={{ flexDirection: 'row', gap: 6 }}>
                           <TouchableOpacity
+                            activeOpacity={0.7}
                             disabled={gdriveState.isSyncing}
                             onPress={handleSyncWithGoogleDrive}
-                            style={[styles.detailCopyPill, { backgroundColor: '#FFFFFF' }]}
+                            style={[styles.settingsActionPill, { backgroundColor: '#FFFFFF' }]}
                           >
                             {gdriveState.isSyncing ? (
                               <ActivityIndicator size="small" color="#08090C" />
                             ) : (
-                              <>
-                                <Ionicons name="sync" size={12} color="#08090C" style={{ marginRight: 4 }} />
-                                <Text style={[styles.detailCopyPillText, { color: '#08090C', fontWeight: '700' }]}>Eşitle</Text>
-                              </>
+                              <Text style={[styles.settingsActionPillText, { color: '#08090C', fontWeight: '700' }]}>Eşitle</Text>
                             )}
                           </TouchableOpacity>
                           <TouchableOpacity
+                            activeOpacity={0.7}
                             onPress={handleDisconnectGoogleDrive}
-                            style={[styles.detailCopyPill, { borderColor: 'rgba(239, 68, 68, 0.4)' }]}
+                            style={[styles.settingsActionPill, { borderColor: 'rgba(239, 68, 68, 0.35)', backgroundColor: 'rgba(239, 68, 68, 0.08)' }]}
                           >
-                            <Text style={[styles.detailCopyPillText, { color: COLORS.dangerRed }]}>Ayrıl</Text>
+                            <Text style={[styles.settingsActionPillText, { color: COLORS.dangerRed }]}>Ayrıl</Text>
                           </TouchableOpacity>
-                        </>
+                        </View>
                       ) : (
                         <TouchableOpacity
+                          activeOpacity={0.7}
                           onPress={() => setShowTokenInput(true)}
-                          style={[styles.detailCopyPill, { backgroundColor: 'rgba(255, 255, 255, 0.08)', borderColor: 'rgba(255, 255, 255, 0.18)' }]}
+                          style={styles.settingsActionPill}
                         >
-                          <Text style={[styles.detailCopyPillText, { color: '#FFFFFF' }]}>Bağlan</Text>
+                          <Text style={styles.settingsActionPillText}>Bağlan</Text>
                         </TouchableOpacity>
                       )}
                     </View>
-                  </View>
 
-                  {/* Google Token Giriş Kutusu */}
-                  {showTokenInput && (
-                    <View style={styles.changePwBox}>
-                      <Text style={[styles.fieldLabel, { fontSize: 11 }]}>GOOGLE ACCESS TOKEN</Text>
-                      <TextInput
-                        style={styles.modalInputBox}
-                        placeholder="OAuth Access Token yapıştırın..."
-                        placeholderTextColor={COLORS.subtleText}
-                        value={googleTokenInput}
-                        onChangeText={setGoogleTokenInput}
-                        autoCapitalize="none"
-                      />
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <TouchableOpacity
-                          onPress={handleSaveGoogleToken}
-                          style={[styles.unlockButton, { flex: 1, height: 40 }]}
-                        >
-                          <Text style={[styles.unlockButtonText, { fontSize: 12 }]}>Bağlantıyı Kaydet</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => setShowTokenInput(false)}
-                          style={[styles.secondaryOutlineButton, { height: 40, paddingHorizontal: 12 }]}
-                        >
-                          <Text style={[styles.secondaryOutlineText, { fontSize: 12 }]}>İptal</Text>
-                        </TouchableOpacity>
+                    {showTokenInput && (
+                      <View style={styles.changePwExpandBox}>
+                        <Text style={[styles.fieldLabel, { fontSize: 10 }]}>GOOGLE ACCESS TOKEN</Text>
+                        <TextInput
+                          style={styles.settingsInputBox}
+                          placeholder="OAuth Access Token yapıştırın..."
+                          placeholderTextColor={COLORS.subtleText}
+                          value={googleTokenInput}
+                          onChangeText={setGoogleTokenInput}
+                          autoCapitalize="none"
+                        />
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <TouchableOpacity
+                            activeOpacity={0.85}
+                            onPress={handleSaveGoogleToken}
+                            style={[styles.settingsSubmitButton, { flex: 1, height: 40 }]}
+                          >
+                            <Text style={[styles.settingsSubmitButtonText, { fontSize: 12 }]}>Kaydet</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() => setShowTokenInput(false)}
+                            style={[styles.settingsSecondaryBtn, { height: 40, paddingHorizontal: 14 }]}
+                          >
+                            <Text style={styles.settingsSecondaryBtnText}>İptal</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                    </View>
-                  )}
-
-                  {/* Cihazlar Arası QR Senkronizasyon Kartı */}
-                  <View style={styles.detailRowBox}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Ionicons name="qr-code-outline" size={16} color={COLORS.cyanAccent} />
-                        <Text style={styles.settingTitleText}>Cihazlar Arası QR Eşitleme</Text>
-                      </View>
-                      <Text style={styles.settingSubText}>
-                        Telefon ve bilgisayar arasında doğrudan QR kod ile eşleyin
-                      </Text>
-                    </View>
-                    <View style={styles.inlinePillGroup}>
-                      <TouchableOpacity
-                        onPress={handleOpenQrShare}
-                        style={[styles.detailCopyPill, { backgroundColor: 'rgba(56, 189, 248, 0.12)', borderColor: 'rgba(56, 189, 248, 0.35)' }]}
-                      >
-                        <Ionicons name="qr-code" size={12} color={COLORS.cyanAccent} style={{ marginRight: 4 }} />
-                        <Text style={[styles.detailCopyPillText, { color: COLORS.cyanAccent }]}>QR Göster</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={handleOpenQrScanner}
-                        style={[styles.detailCopyPill, { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.35)' }]}
-                      >
-                        <Ionicons name="scan-outline" size={12} color={COLORS.emerald} style={{ marginRight: 4 }} />
-                        <Text style={[styles.detailCopyPillText, { color: COLORS.emerald }]}>Tara</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {/* Keyra Web PC Bağlantı Kartı */}
-                  <View style={styles.detailRowBox}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Ionicons name="laptop-outline" size={16} color={COLORS.primary} />
-                        <Text style={styles.settingTitleText}>Keyra Web (PC'ye Bağlan)</Text>
-                      </View>
-                      <Text style={styles.settingSubText}>
-                        PC ekranındaki QR'ı okutun, şifreleriniz anında tarayıcıda açılsın
-                      </Text>
-                    </View>
-                    <View style={styles.inlinePillGroup}>
-                      <TouchableOpacity
-                        onPress={handleOpenQrScanner}
-                        style={[styles.detailCopyPill, { backgroundColor: 'rgba(255, 255, 255, 0.08)', borderColor: 'rgba(255, 255, 255, 0.18)' }]}
-                      >
-                        <Ionicons name="scan-outline" size={12} color="#FFFFFF" style={{ marginRight: 4 }} />
-                        <Text style={[styles.detailCopyPillText, { color: '#FFFFFF' }]}>PC Tara</Text>
-                      </TouchableOpacity>
-                    </View>
+                    )}
                   </View>
                 </View>
 
-                {/* Dışa ve İçe Aktarma */}
-                <TouchableOpacity
-                  onPress={async () => {
-                    triggerHaptic('light');
-                    isSystemDialogOpenRef.current = true;
-                    try {
-                      await kdbxService.exportCurrentVault();
-                    } catch (err: unknown) {
-                      Alert.alert(
-                        'Dışa Aktar',
-                        err instanceof Error
-                          ? err.message
-                          : 'Kasa dışa aktarılamadı.'
+                {/* GRUP 4: KASA YÖNETİMİ & DOSYALAR */}
+                <View style={styles.settingsSection}>
+                  <Text style={styles.settingsSectionHeader}>KASA DOSYASI & YEDEK</Text>
+                  <View style={styles.settingsGroupCard}>
+                    {Array.from(new Set([vaultState.fileName, ...knownVaults])).map((vaultFile, idx, arr) => {
+                      const isCurrent = vaultFile === vaultState.fileName;
+                      return (
+                        <React.Fragment key={vaultFile}>
+                          <View style={styles.settingsRow}>
+                            <View style={[styles.settingsIconBox, { backgroundColor: isCurrent ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.05)' }]}>
+                              <Ionicons name="folder-outline" size={16} color={isCurrent ? COLORS.emerald : '#8E92A4'} />
+                            </View>
+                            <View style={{ flex: 1, marginRight: 8 }}>
+                              <Text style={styles.settingRowTitle} numberOfLines={1}>{vaultFile}</Text>
+                              <Text style={styles.settingRowSubtitle}>
+                                {isCurrent ? 'Aktif Açık Kasa' : 'Kayıtlı Kasa'}
+                              </Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                              {!isCurrent && (
+                                <TouchableOpacity
+                                  activeOpacity={0.7}
+                                  onPress={async () => {
+                                    triggerHaptic('light');
+                                    setSettingsModalOpen(false);
+                                    handleLock(true);
+                                    await handleSelectKnownVault(vaultFile);
+                                    setAuthMode('unlock');
+                                  }}
+                                  style={styles.settingsActionPill}
+                                >
+                                  <Text style={styles.settingsActionPillText}>Aç</Text>
+                                </TouchableOpacity>
+                              )}
+                              <TouchableOpacity
+                                activeOpacity={0.7}
+                                onPress={() => {
+                                  triggerHaptic('medium');
+                                  handleDeleteVaultFile(vaultFile);
+                                }}
+                                style={styles.settingsTrashBtn}
+                              >
+                                <Ionicons name="trash-outline" size={15} color={COLORS.dangerRed} />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                          <View style={styles.settingsDivider} />
+                        </React.Fragment>
                       );
-                    } finally {
-                      setTimeout(() => {
-                        isSystemDialogOpenRef.current = false;
-                      }, 600);
-                    }
-                  }}
-                  style={styles.unlockButton}
-                >
-                  <Feather name="share-2" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.unlockButtonText}>
-                    .kdbx Dosyasını Dışa Aktar / Paylaş
-                  </Text>
-                </TouchableOpacity>
+                    })}
 
-                <TouchableOpacity
-                  onPress={async () => {
-                    triggerHaptic('light');
-                    setSettingsModalOpen(false);
-                    handleLock(true);
-                    await handleImportKdbxFile();
-                  }}
-                  style={styles.secondaryOutlineButton}
-                >
-                  <Feather name="folder" size={16} color={COLORS.cyanAccent} style={{ marginRight: 8 }} />
-                  <Text style={[styles.secondaryOutlineText, { color: COLORS.cyanAccent }]}>
-                    Cihazdan Başka .kdbx Dosyası Yükle
-                  </Text>
-                </TouchableOpacity>
+                    {/* Dışa Aktar */}
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={async () => {
+                        triggerHaptic('light');
+                        isSystemDialogOpenRef.current = true;
+                        try {
+                          await kdbxService.exportCurrentVault();
+                        } catch (err: unknown) {
+                          Alert.alert('Dışa Aktar', err instanceof Error ? err.message : 'Kasa dışa aktarılamadı.');
+                        } finally {
+                          setTimeout(() => { isSystemDialogOpenRef.current = false; }, 600);
+                        }
+                      }}
+                      style={styles.settingsRow}
+                    >
+                      <View style={[styles.settingsIconBox, { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]}>
+                        <Feather name="share-2" size={15} color="#FFFFFF" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.settingRowTitle}>Kasa Dosyasını Dışa Aktar</Text>
+                        <Text style={styles.settingRowSubtitle}>.kdbx dosyasını paylaşın veya yedekleyin</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={COLORS.mutedForeground} />
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPress={() => {
-                    triggerHaptic('medium');
-                    setSettingsModalOpen(false);
-                    handleLock(false);
-                    setAuthMode('welcome');
-                  }}
-                  style={styles.deleteEntryButton}
-                >
-                  <Ionicons name="log-out-outline" size={17} color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.deleteEntryButtonText}>
-                    Kasayı Kilitle ve Başlangıca Dön
-                  </Text>
-                </TouchableOpacity>
+                    <View style={styles.settingsDivider} />
+
+                    {/* Cihazdan Başka .kdbx Yükle */}
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={async () => {
+                        triggerHaptic('light');
+                        setSettingsModalOpen(false);
+                        handleLock(true);
+                        await handleImportKdbxFile();
+                      }}
+                      style={styles.settingsRow}
+                    >
+                      <View style={[styles.settingsIconBox, { backgroundColor: 'rgba(56, 189, 248, 0.12)' }]}>
+                        <Feather name="folder-plus" size={15} color={COLORS.cyanAccent} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.settingRowTitle}>Cihazdan .kdbx Yükle</Text>
+                        <Text style={styles.settingRowSubtitle}>Dosya yöneticisinden başka kasa açın</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={COLORS.mutedForeground} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* GRUP 5: OTURUM & ÇIKIŞ */}
+                <View style={[styles.settingsSection, { marginBottom: 16 }]}>
+                  <View style={styles.settingsGroupCard}>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        triggerHaptic('medium');
+                        setSettingsModalOpen(false);
+                        handleLock(false);
+                        setAuthMode('welcome');
+                      }}
+                      style={styles.settingsRow}
+                    >
+                      <View style={[styles.settingsIconBox, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}>
+                        <Ionicons name="log-out-outline" size={16} color={COLORS.dangerRed} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.settingRowTitle, { color: COLORS.dangerRed }]}>Kasayı Kilitle ve Başlangıca Dön</Text>
+                        <Text style={styles.settingRowSubtitle}>Kasa şifresi olmadan erişilemez</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={COLORS.dangerRed} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </ScrollView>
             </View>
           </KeyboardAvoidingView>
@@ -3874,6 +3868,129 @@ const styles = StyleSheet.create({
   },
   genOptionPillTextActive: {
     color: '#08090C',
+  },
+  // --- MODERN SETTINGS INSET GROUPED STYLES ---
+  settingsSection: {
+    gap: 7,
+  },
+  settingsSectionHeader: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#55596D',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    paddingHorizontal: 4,
+  },
+  settingsGroupCard: {
+    backgroundColor: '#111218',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.07)',
+    overflow: 'hidden',
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 13,
+    gap: 12,
+  },
+  settingsIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingRowTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
+  },
+  settingRowSubtitle: {
+    fontSize: 12,
+    color: '#8E92A4',
+    marginTop: 2,
+    letterSpacing: -0.1,
+  },
+  settingsDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    marginLeft: 58,
+  },
+  settingsInlineInput: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    height: 28,
+    paddingVertical: 0,
+    marginTop: 2,
+  },
+  settingsActionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  settingsActionPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  settingsTrashBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+  },
+  changePwExpandBox: {
+    padding: 14,
+    backgroundColor: '#0E0F15',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+    gap: 10,
+  },
+  settingsInputBox: {
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: '#151620',
+    paddingHorizontal: 14,
+    fontSize: 13,
+    color: '#FFFFFF',
+  },
+  settingsSubmitButton: {
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsSubmitButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#08090C',
+  },
+  settingsSecondaryBtn: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsSecondaryBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#8E92A4',
   },
   settingTitleText: {
     fontSize: 13,

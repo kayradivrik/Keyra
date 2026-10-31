@@ -27,6 +27,8 @@ import {
   StatusBar as RNStatusBar,
   Image,
   Switch,
+  Animated,
+  Easing,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -332,6 +334,25 @@ export default function App() {
   const [scannerModalOpen, setScannerModalOpen] = useState<boolean>(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
+  // Akıcı Mikro-Animasyonlar & Odaklanma State'leri
+  const heroFadeAnim = useRef(new Animated.Value(0)).current;
+  const heroScaleAnim = useRef(new Animated.Value(0.94)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [passwordFocused, setPasswordFocused] = useState<boolean>(false);
+
+  const triggerShake = useCallback(() => {
+    shakeAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 7, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -7, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 3, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  }, [shakeAnim]);
+
   const showToast = useCallback((msg: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToastMessage(msg);
@@ -391,8 +412,41 @@ export default function App() {
     [showToast]
   );
 
-  // Başlangıçta profil ve biyometrik durumu yükle
+  // Başlangıçta profil, biyometrik durumu ve giriş animasyonlarını başlat
   useEffect(() => {
+    Animated.parallel([
+      Animated.timing(heroFadeAnim, {
+        toValue: 1,
+        duration: 450,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(heroScaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.025,
+          duration: 1600,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1.0,
+          duration: 1600,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulseLoop.start();
+
     (async () => {
       try {
         const profile = await kdbxService.loadProfile();
@@ -421,10 +475,11 @@ export default function App() {
     })();
 
     return () => {
+      pulseLoop.stop();
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       if (clipboardTimerRef.current) clearTimeout(clipboardTimerRef.current);
     };
-  }, [refreshBiometricState]);
+  }, [refreshBiometricState, heroFadeAnim, heroScaleAnim, pulseAnim]);
 
   // Arka Plana Atınca Otomatik Kilitleme (AppState Dinleyicisi)
   useEffect(() => {
@@ -678,6 +733,8 @@ export default function App() {
   const handleUnlock = async () => {
     if (!password.trim() || authStatus === 'deriving') {
       if (!password.trim()) {
+        triggerShake();
+        triggerHaptic('error');
         setErrorMessage('Lütfen kasa şifrenizi girin.');
       }
       return;
@@ -721,6 +778,8 @@ export default function App() {
       });
       setSelectedEntry(entries[0] ?? null);
     } catch (err: unknown) {
+      triggerShake();
+      triggerHaptic('error');
       setAuthStatus('idle');
       setDerivingProgress(null);
       setErrorMessage(
@@ -1178,7 +1237,15 @@ export default function App() {
                ===================================================== */}
             {authMode === 'unlock' && (
               <View style={styles.lockForm}>
-                <View style={styles.lockHero}>
+                <Animated.View
+                  style={[
+                    styles.lockHero,
+                    {
+                      opacity: heroFadeAnim,
+                      transform: [{ scale: heroScaleAnim }],
+                    },
+                  ]}
+                >
                   <View style={styles.logoImageWrap}>
                     <Image
                       source={require('./assets/keyra-logo.png')}
@@ -1188,14 +1255,20 @@ export default function App() {
                   </View>
                   <View style={styles.lockBrandWrap}>
                     <Text style={styles.lockBrandTitle}>Keyra</Text>
-                    <View style={styles.activeVaultPill}>
+                    <Animated.View
+                      style={[
+                        styles.activeVaultPill,
+                        { transform: [{ scale: pulseAnim }] },
+                      ]}
+                    >
                       <Ionicons name="lock-closed" size={12} color={COLORS.primary} style={{ marginRight: 5 }} />
                       <Text style={styles.activeVaultPillText} numberOfLines={1}>
                         {vaultState.fileName}
                       </Text>
-                    </View>
+                      <View style={styles.verifiedDot} />
+                    </Animated.View>
                   </View>
-                </View>
+                </Animated.View>
 
                 {/* Birden fazla kasa varsa minimalist yatay seçici */}
                 {knownVaults.length > 1 && (
@@ -1230,12 +1303,17 @@ export default function App() {
                 )}
 
                 {/* Şifre Giriş Kartı */}
-                <View style={styles.passwordCard}>
-                  <View style={styles.passwordBox}>
+                <Animated.View
+                  style={[
+                    styles.passwordCard,
+                    { transform: [{ translateX: shakeAnim }] },
+                  ]}
+                >
+                  <View style={[styles.passwordBox, passwordFocused && styles.passwordBoxFocused]}>
                     <Ionicons
                       name="key-outline"
                       size={18}
-                      color={COLORS.subtleText}
+                      color={passwordFocused ? COLORS.foreground : COLORS.subtleText}
                       style={{ marginRight: 10 }}
                     />
                     <TextInput
@@ -1245,6 +1323,8 @@ export default function App() {
                         setPassword(t);
                         if (errorMessage) setErrorMessage(null);
                       }}
+                      onFocus={() => setPasswordFocused(true)}
+                      onBlur={() => setPasswordFocused(false)}
                       secureTextEntry={!visiblePassword}
                       placeholder="Kasa Ana Şifreniz"
                       placeholderTextColor={COLORS.subtleText}
@@ -1335,7 +1415,7 @@ export default function App() {
                       </Text>
                     </TouchableOpacity>
                   )}
-                </View>
+                </Animated.View>
 
                 {/* Alt Minimalist Bağlantılar */}
                 <View style={styles.lockFooterLinks}>
@@ -3289,6 +3369,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card,
     paddingLeft: 14,
     paddingRight: 6,
+  },
+  passwordBoxFocused: {
+    borderColor: '#FFFFFF',
+    backgroundColor: '#16171E',
+  },
+  verifiedDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+    marginLeft: 6,
   },
   passwordInput: {
     flex: 1,

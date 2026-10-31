@@ -685,6 +685,7 @@
     const SVG_EYE_OFF = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
     const SVG_COPY = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
     const SVG_CHECK = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+    const SVG_SHIELD = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
 
     function getMonogramStyle(text) {
       let hash = 0;
@@ -920,6 +921,7 @@
               <div style="display: flex; gap: 4px;">
                 <button class="field-action-btn" id="btn_pw_${entry.id}" onclick="togglePassword('${entry.id}', '${escapeJs(entry.password)}', this)">${SVG_EYE}</button>
                 <button class="field-action-btn" onclick="copyToClipboard('${escapeJs(entry.password)}', 'Şifre kopyalandı', this)">${SVG_COPY} Kopyala</button>
+                <button class="field-action-btn" title="HaveIBeenPwned k-Anonymity Sızıntı Kontrolü" onclick="checkBreach('${escapeJs(entry.password)}', '${escapeJs(entry.title)}', this)">${SVG_SHIELD} Sızıntı</button>
               </div>
             </div>
 
@@ -970,7 +972,8 @@
       handleSearch();
     }
 
-    // 8. CLIPBOARD & TOAST
+    // 8. CLIPBOARD (30s AUTO WIPE) & TOAST
+    let clipWipeTimer = null;
     function copyToClipboard(text, msg, btn) {
       navigator.clipboard.writeText(text).then(() => {
         showToast(msg);
@@ -981,7 +984,58 @@
             btn.innerHTML = origHtml;
           }, 1500);
         }
+
+        if (clipWipeTimer) clearTimeout(clipWipeTimer);
+        clipWipeTimer = setTimeout(async () => {
+          try {
+            const cur = await navigator.clipboard.readText();
+            if (cur === text) {
+              await navigator.clipboard.writeText('');
+              showToast('Pano güvenlik için temizlendi');
+            }
+          } catch {}
+        }, 30000);
       });
+    }
+
+    // HaveIBeenPwned k-Anonymity Sızıntı Kontrolü
+    async function checkBreach(password, title, btn) {
+      if (!password) return;
+      const origHtml = btn ? btn.innerHTML : '';
+      if (btn) btn.innerHTML = 'Taranıyor...';
+      try {
+        const enc = new TextEncoder().encode(password);
+        const hashBuf = await window.crypto.subtle.digest('SHA-1', enc);
+        const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+        const prefix = hashHex.slice(0, 5);
+        const suffix = hashHex.slice(5);
+
+        const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+          headers: { 'Add-Padding': 'true' }
+        });
+
+        if (!res.ok) throw new Error('Servis yanıt vermedi');
+        const text = await res.text();
+        const lines = text.split('\n');
+        let breachCount = 0;
+        for (const line of lines) {
+          const [hSuffix, countStr] = line.trim().split(':');
+          if (hSuffix === suffix) {
+            breachCount = parseInt(countStr, 10) || 1;
+            break;
+          }
+        }
+
+        if (breachCount > 0) {
+          alert(`⚠️ SIZINTI UYARISI!\n\n"${title}" şifreniz internetteki veri sızıntılarında ${breachCount.toLocaleString()} kez ele geçirilmiş!\n\nLütfen bu şifreyi derhal güncelleyin.`);
+        } else {
+          alert(`✅ ŞİFRE GÜVENDE!\n\n"${title}" şifresi bilinen hiçbir veri sızıntısında yer almıyor.\n\nk-Anonymity kriptografik taraması başarıyla tamamlandı. Şifreniz asla açığa çıkmadı.`);
+        }
+      } catch (err) {
+        alert('Sızıntı kontrol servisine ulaşılamadı. Lütfen internet bağlantınızı kontrol edin.');
+      } finally {
+        if (btn) btn.innerHTML = origHtml;
+      }
     }
 
     function showToast(msg) {
@@ -1056,8 +1110,36 @@
       return (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
     }
 
-    // INIT ON LOAD
-    window.addEventListener('DOMContentLoaded', initPairing);
+    // INIT ON LOAD & KEYBOARD ACCESSIBILITY
+    window.addEventListener('DOMContentLoaded', () => {
+      initPairing();
+
+      window.addEventListener('keydown', (e) => {
+        // Ctrl + F veya '/' tuşu arama çubuğunu odaklar
+        if ((e.ctrlKey && (e.key === 'f' || e.key === 'F')) || (e.key === '/' && document.activeElement.tagName !== 'INPUT')) {
+          e.preventDefault();
+          const searchInput = document.getElementById('searchInput');
+          if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+          }
+        }
+        // Escape: Arama çubuğunu temizler
+        if (e.key === 'Escape') {
+          const searchInput = document.getElementById('searchInput');
+          if (searchInput && document.activeElement === searchInput) {
+            searchInput.value = '';
+            handleSearch();
+            searchInput.blur();
+          }
+        }
+        // Ctrl + L: Kasayı anında kilitler
+        if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) {
+          e.preventDefault();
+          disconnectSession();
+        }
+      });
+    });
   </script>
 </body>
 </html>

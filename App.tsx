@@ -34,11 +34,13 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import * as Clipboard from 'expo-clipboard';
+import * as ScreenCapture from 'expo-screen-capture';
 import QRCode from 'react-native-qrcode-svg';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { googleDriveSync, GoogleSyncState } from './services/GoogleDriveSyncService';
 import { qrSync, QrSyncPayload } from './services/QrSyncService';
 import { webConnectService } from './services/WebConnectService';
+import { breachCheckerService } from './services/BreachCheckerService';
 import {
   AuthScreenMode,
   EntryCategory,
@@ -176,6 +178,9 @@ const EntryCardItem = React.memo(function EntryCardItem({
   return (
     <TouchableOpacity
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${entry.title} kaydı. ${entry.username ? `Kullanıcı adı: ${entry.username}` : ''}`}
+      accessibilityHint="Kayıt detaylarını görüntülemek için dokunun"
       onPress={() => {
         triggerHaptic('light');
         onOpenDetail(entry);
@@ -219,6 +224,8 @@ const EntryCardItem = React.memo(function EntryCardItem({
         <TouchableOpacity
           onPress={handleCopy}
           activeOpacity={0.65}
+          accessibilityRole="button"
+          accessibilityLabel={`${entry.title} şifresini panoya kopyala`}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           style={[styles.quickCopyButton, copied && styles.quickCopyButtonCopied]}
         >
@@ -266,6 +273,9 @@ export default function App() {
     useState<boolean>(false);
   const [saveBiometricOnAuth, setSaveBiometricOnAuth] =
     useState<boolean>(false);
+  const [screenSecurityEnabled, setScreenSecurityEnabled] =
+    useState<boolean>(true);
+  const [isCheckingBreach, setIsCheckingBreach] = useState<boolean>(false);
 
   // Şifre Giriş State'leri
   const [password, setPassword] = useState<string>('');
@@ -504,6 +514,15 @@ export default function App() {
     };
   }, [vaultState.isUnlocked, autoLockOnBackground, handleLock, scannerModalOpen]);
 
+  // Ekran Görüntüsü & Kayıt Koruması (Anti-Spy / FLAG_SECURE)
+  useEffect(() => {
+    if (screenSecurityEnabled && vaultState.isUnlocked) {
+      ScreenCapture.preventScreenCaptureAsync().catch(() => {});
+    } else {
+      ScreenCapture.allowScreenCaptureAsync().catch(() => {});
+    }
+  }, [screenSecurityEnabled, vaultState.isUnlocked]);
+
   // 30 Saniyede Otomatik Temizlenen Pano Kopyalama Fonksiyonu
   const handleCopyText = useCallback(async (value: string, label: string) => {
     await Clipboard.setStringAsync(value);
@@ -527,6 +546,34 @@ export default function App() {
     setSelectedEntry(target);
     setDetailPasswordVisible(false);
     setDetailModalOpen(true);
+  }, []);
+
+  // HaveIBeenPwned k-Anonymity Sızıntı Kontrolü (Sıfır-Bilgi Güvenliği)
+  const handleCheckBreach = useCallback(async (pw: string, title?: string) => {
+    triggerHaptic('light');
+    setIsCheckingBreach(true);
+    try {
+      const res = await breachCheckerService.checkPassword(pw);
+      triggerHaptic(res.isPwned ? 'error' : 'success');
+      if (res.isPwned) {
+        Alert.alert(
+          'Sızıntı Uyarısı!',
+          `"${title || 'Bu'}" kaydının şifresi bilinen veri sızıntılarında ${res.breachCount.toLocaleString()} kez ele geçirilmiş!\n\nHesabınızın güvenliği için bu şifreyi derhal değiştirmenizi öneririz.`,
+          [{ text: 'Tamam', style: 'destructive' }]
+        );
+      } else {
+        Alert.alert(
+          'Şifre Güvende',
+          `"${title || 'Bu'}" şifresi bilinen hiçbir sızıntı veritabanında yer almıyor.\n\nK-Anonymity kriptografik taraması başarıyla tamamlandı. Şifreniz tamamen gizli kaldı.`,
+          [{ text: 'Harika', style: 'default' }]
+        );
+      }
+    } catch {
+      triggerHaptic('error');
+      Alert.alert('Bağlantı Hatası', 'Sızıntı kontrol servisine ulaşılamadı. İnternet bağlantınızı kontrol edin.');
+    } finally {
+      setIsCheckingBreach(false);
+    }
   }, []);
 
   // URL'yi Tarayıcıda Açma
@@ -2081,6 +2128,21 @@ export default function App() {
                         <Ionicons name="copy-outline" size={13} color={COLORS.primary} style={{ marginRight: 4 }} />
                         <Text style={styles.detailCopyPillText}>Kopyala</Text>
                       </TouchableOpacity>
+
+                      <TouchableOpacity
+                        disabled={isCheckingBreach}
+                        onPress={() => handleCheckBreach(selectedEntry.password, selectedEntry.title)}
+                        style={[styles.detailCopyPill, { borderColor: 'rgba(245, 158, 11, 0.35)', backgroundColor: 'rgba(245, 158, 11, 0.08)' }]}
+                      >
+                        {isCheckingBreach ? (
+                          <ActivityIndicator size="small" color="#F59E0B" />
+                        ) : (
+                          <>
+                            <Ionicons name="shield-outline" size={13} color="#F59E0B" style={{ marginRight: 4 }} />
+                            <Text style={[styles.detailCopyPillText, { color: '#F59E0B' }]}>Sızıntı Tara</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
                     </View>
                   </View>
 
@@ -2642,6 +2704,29 @@ export default function App() {
                         </View>
                       </>
                     )}
+
+                    <View style={styles.settingsDivider} />
+
+                    {/* Ekran Görüntüsü & Casus Yazılım Koruması */}
+                    <View style={styles.settingsRow}>
+                      <View style={[styles.settingsIconBox, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}>
+                        <Ionicons name="eye-off" size={16} color={COLORS.dangerRed} />
+                      </View>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={styles.settingRowTitle}>Ekran Kaydı & Casus Koruması</Text>
+                        <Text style={styles.settingRowSubtitle}>Ekran görüntüsü ve video kaydını engeller (FLAG_SECURE)</Text>
+                      </View>
+                      <Switch
+                        value={screenSecurityEnabled}
+                        onValueChange={(next) => {
+                          triggerHaptic('light');
+                          setScreenSecurityEnabled(next);
+                          showToast(next ? 'Ekran koruması açıldı' : 'Ekran koruması kapatıldı');
+                        }}
+                        trackColor={{ false: 'rgba(255, 255, 255, 0.1)', true: '#FFFFFF' }}
+                        thumbColor={screenSecurityEnabled ? '#08090C' : '#8E92A4'}
+                      />
+                    </View>
 
                     <View style={styles.settingsDivider} />
 

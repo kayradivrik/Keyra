@@ -8,7 +8,7 @@
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",
     "events": "^3.3.0",
-    "expo": "^58.0.0",
+    "expo": "~58.0.22",
     "expo-auth-session": "~58.0.16",
     "expo-camera": "~58.0.14",
     "expo-clipboard": "~58.0.4",

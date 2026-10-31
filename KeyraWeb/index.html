@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Keyra Web • Uçtan Uca Şifreli Kasa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root {
+      --bg: #08090C;
+      --surface: #111218;
+      --surface-hover: #161722;
+      --surface-border: rgba(255, 255, 255, 0.07);
+      --surface-border-hover: rgba(255, 255, 255, 0.16);
+      --primary: #FFFFFF;
+      --primary-hover: #E5E7EB;
+      --primary-text: #08090C;
+      --text: #FFFFFF;
+      --text-muted: #8E92A4;
+      --text-dim: #55596D;
+      --emerald: #10B981;
+      --emerald-dim: rgba(16, 185, 129, 0.15);
+      --rose: #EF4444;
+      --amber: #F59E0B;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", "Inter", "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* HEADER */
+    header {
+      height: 68px;
+      border-bottom: 1px solid var(--surface-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      background: rgba(8, 9, 12, 0.92);
+      backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 11px;
+      background: #151620;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .brand-logo svg {
+      width: 20px;
+      height: 20px;
+      fill: #FFFFFF;
+    }
+
+    .brand-text h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #FFFFFF;
+    }
+
+    .badge-web {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      color: #8E92A4;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 13px;
+      border-radius: 20px;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--amber);
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+      animation: pulse 1.8s infinite;
+    }
+
+    .pulse-dot.connected {
+      background: var(--emerald);
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.6; transform: scale(0.95); }
+      50% { opacity: 1; transform: scale(1.1); }
+      100% { opacity: 0.6; transform: scale(0.95); }
+    }
+
+    .btn {
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px 15px;
+      border-radius: var(--radius-md);
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .btn svg {
+      flex-shrink: 0;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: var(--primary-text);
+      font-weight: 600;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-outline {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--surface-border);
+    }
+
+    .btn-outline:hover {
+      background: var(--surface-hover);
+      border-color: var(--surface-border-hover);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.08);
+      color: var(--rose);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.15);
+    }
+
+    /* MAIN CONTAINER */
+    main {
+      flex: 1;
+      max-width: 1140px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px 24px;
+    }
+
+    /* STEP 1: PAIRING VIEW */
+    #pairingView {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 160px);
+      text-align: center;
+    }
+
+    .pairing-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-lg);
+      padding: 40px;
+      max-width: 460px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .pairing-content {
+      width: 100%;
+    }
+
+    .pairing-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      margin-bottom: 8px;
+      color: #FFFFFF;
+    }
+
+    .pairing-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 26px;
+    }
+
+    .qr-box-wrapper {
+      background: #FFFFFF;
+      padding: 14px;
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      margin: 0 auto 24px auto;
+      display: inline-block;
+    }
+
+    #qrcode {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 200px;
+      height: 200px;
+    }
+
+    .pairing-steps {
+      background: #0D0E14;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      text-align: left;
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    .pairing-steps strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .pairing-steps ol {
+      padding-left: 18px;
+    }
+
+    /* STEP 2: DASHBOARD VIEW */
+    #dashboardView {
+      display: none;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .dashboard-hero {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-lg);
+      padding: 22px 28px;
+    }
+
+    .vault-meta h2 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #FFFFFF;
+    }
+
+    .vault-meta p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    .search-filter-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .search-input-wrap {
+      position: relative;
+      width: 100%;
+    }
+
+    .search-input-wrap svg {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 17px;
+      height: 17px;
+      fill: none;
+      stroke: var(--text-dim);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .search-input {
+      width: 100%;
+      height: 46px;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      padding: 0 16px 0 46px;
+      font-family: var(--font-sans);
+      font-size: 14px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    .search-input:focus {
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    .category-pills {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .category-pill {
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 7px 14px;
+      border-radius: 20px;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .category-pill:hover {
+      background: var(--surface-hover);
+      color: var(--text);
+    }
+
+    .category-pill.active {
+      background: #FFFFFF;
+      border-color: #FFFFFF;
+      color: #08090C;
+      font-weight: 600;
+    }
+
+    /* ENTRIES GRID */
+    .entries-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 14px;
+    }
+
+    .entry-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      transition: all 0.15s ease;
+    }
+
+    .entry-card:hover {
+      border-color: var(--surface-border-hover);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .entry-top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .monogram-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      flex-shrink: 0;
+    }
+
+    .entry-title-wrap {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .entry-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .entry-category-badge {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-dim);
+      text-transform: capitalize;
+      margin-top: 1px;
+    }
+
+    .entry-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: #0B0C11;
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .field-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      width: 65px;
+      flex-shrink: 0;
+    }
+
+    .field-value {
+      flex: 1;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .field-action-btn {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      color: var(--text-muted);
+      padding: 4px 7px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.12s ease;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .field-action-btn svg {
+      flex-shrink: 0;
+    }
+
+    .field-action-btn:hover {
+      background: var(--surface-hover);
+      color: #FFFFFF;
+      border-color: var(--surface-border-hover);
+    }
+
+    /* TOAST */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #14151E;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text);
+      padding: 10px 16px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 1000;
+    }
+
+    .toast svg {
+      flex-shrink: 0;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="brand-wrap">
+      <div class="brand-logo">
+        <svg viewBox="0 0 24 24">
+          <path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>Keyra <span class="badge-web">Web Connect</span></h1>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div class="status-pill">
+        <div class="pulse-dot" id="statusDot"></div>
+        <span id="statusText">Eşleşme Bekleniyor</span>
+      </div>
+      <button class="btn btn-outline" id="downloadKdbxBtn" style="display: none;" onclick="downloadRawKdbx()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Kasayı İndir (.kdbx)
+      </button>
+      <button class="btn btn-danger" id="disconnectBtn" style="display: none;" onclick="disconnectSession()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Oturumu Kapat
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main>
+    <!-- STEP 1: PAIRING VIEW -->
+    <section id="pairingView">
+      <div class="pairing-card">
+        <div class="pairing-content">
+          <h2 class="pairing-title">Bilgisayarınızı Bağlayın</h2>
+          <p class="pairing-sub">Kasanızı hiçbir kurulum yapmadan, uçtan uca şifreli olarak tarayıcınızda açın.</p>
+
+          <div class="qr-box-wrapper">
+            <div id="qrcode"></div>
+          </div>
+
+          <div class="pairing-steps">
+            <ol>
+              <li>Telefonunuzda <strong>Keyra</strong> uygulamasını açın</li>
+              <li>Ana ekranda sağ üstteki <strong>PC'ye Bağlan</strong> simgesine dokunun</li>
+              <li>Kameranızı buradaki <strong>QR koda</strong> tutun</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 2: DASHBOARD VIEW -->
+    <section id="dashboardView">
+      <div class="dashboard-hero">
+        <div class="vault-meta">
+          <h2 id="dashVaultTitle">Kasa Başlığı</h2>
+          <p id="dashVaultSubtitle">0 kayıt listeleniyor • Uçtan uca şifreli oturum</p>
+        </div>
+        <div>
+          <button class="btn btn-primary" onclick="downloadRawKdbx()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            .kdbx Olarak Kaydet
+          </button>
+        </div>
+      </div>
+
+      <!-- SEARCH & FILTER -->
+      <div class="search-filter-bar">
+        <div class="search-input-wrap">
+          <svg viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input
+            type="text"
+            id="searchInput"
+            class="search-input"
+            placeholder="Kayıtlarda ara (başlık, kullanıcı adı, web sitesi...)"
+            oninput="handleSearch()"
+          />
+        </div>
+
+        <div class="category-pills">
+          <button class="category-pill active" onclick="setCategoryFilter('all', this)">Tümü</button>
+          <button class="category-pill" onclick="setCategoryFilter('logins', this)">Girişler</button>
+          <button class="category-pill" onclick="setCategoryFilter('servers', this)">Sunucular</button>
+          <button class="category-pill" onclick="setCategoryFilter('tokens', this)">Tokenlar</button>
+          <button class="category-pill" onclick="setCategoryFilter('notes', this)">Notlar</button>
+        </div>
+      </div>
+
+      <!-- ENTRIES GRID -->
+      <div class="entries-grid" id="entriesGrid">
+        <!-- Dinamik Render -->
+      </div>
+    </section>
+  </main>
+
+  <!-- TOAST NOTIFICATION -->
+  <div class="toast" id="toastBox">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    <span id="toastMsg">Kopyalandı</span>
+  </div>
+
+  <script>
+    // PALETTE FOR DYNAMIC MONOGRAMS (ELEGANT ZINC & SUBTLE ACCENTS)
+    const PALETTES = [
+      { bg: 'rgba(255, 255, 255, 0.08)', text: '#FFFFFF', border: 'rgba(255, 255, 255, 0.15)' },
+      { bg: 'rgba(16, 185, 129, 0.12)', text: '#34D399', border: 'rgba(16, 185, 129, 0.25)' },
+      { bg: 'rgba(56, 189, 248, 0.12)', text: '#38BDF8', border: 'rgba(56, 189, 248, 0.25)' },
+      { bg: 'rgba(245, 158, 11, 0.12)', text: '#FBBF24', border: 'rgba(245, 158, 11, 0.25)' },
+      { bg: 'rgba(148, 163, 184, 0.12)', text: '#CBD5E1', border: 'rgba(148, 163, 184, 0.25)' },
+      { bg: 'rgba(244, 63, 94, 0.12)',  text: '#FB7185', border: 'rgba(244, 63, 94, 0.25)' },
+    ];
+
+    const SVG_EYE = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    const SVG_EYE_OFF = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+    const SVG_COPY = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+    const SVG_CHECK = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+    function getMonogramStyle(text) {
+      let hash = 0;
+      const str = text || 'K';
+      for (let i = 0; i < str.length; i++) {
+        hash = (hash << 5) - hash + str.charCodeAt(i);
+        hash |= 0;
+      }
+      return PALETTES[Math.abs(hash) % PALETTES.length];
+    }
+
+    function deriveMonogram(str) {
+      const clean = (str || 'K').trim();
+      const parts = clean.split(/\s+/);
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+      return clean.slice(0, 2).toUpperCase();
+    }
+
+    // STATE
+    let currentSessionId = '';
+    let currentKeyHex = '';
+    let eventSource = null;
+    let vaultEntries = [];
+    let rawKdbxBase64 = null;
+    let currentVaultName = 'Keyra.kdbx';
+    let activeCategory = 'all';
+
+    // 1. GENERATE EPHEMERAL PAIRING CREDENTIALS
+    function initPairing() {
+      // 32-byte AES key
+      const keyBytes = new Uint8Array(32);
+      window.crypto.getRandomValues(keyBytes);
+      currentKeyHex = Array.from(keyBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+
+      // Random topic session id
+      const sessionBytes = new Uint8Array(8);
+      window.crypto.getRandomValues(sessionBytes);
+      const randStr = Array.from(sessionBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+      currentSessionId = `keyra_sync_${randStr}`;
+
+      const pairingPayload = JSON.stringify({
+        type: 'KEYRA_WEB_PAIR',
+        sessionId: currentSessionId,
+        keyHex: currentKeyHex,
+      });
+
+      // QR Kod Çiz
+      const qrContainer = document.getElementById('qrcode');
+      qrContainer.innerHTML = '';
+      new QRCode(qrContainer, {
+        text: pairingPayload,
+        width: 210,
+        height: 210,
+        colorDark: '#090A0F',
+        colorLight: '#FFFFFF',
+        correctLevel: QRCode.CorrectLevel.M,
+      });
+
+      startListeningForRelay();
+    }
+
+    // 2. LISTEN FOR SECURE RELAY EVENT
+    function startListeningForRelay() {
+      if (eventSource) {
+        eventSource.close();
+      }
+
+      eventSource = new EventSource(`https://ntfy.sh/${currentSessionId}/sse`);
+
+      eventSource.onopen = () => {
+        document.getElementById('statusDot').className = 'pulse-dot';
+        document.getElementById('statusText').innerText = 'Bağlantı Bekleniyor...';
+      };
+
+      let incomingChunks = {};
+
+      eventSource.onmessage = async (e) => {
+        try {
+          const eventData = JSON.parse(e.data);
+          if (eventData.event === 'message') {
+            let msgText = eventData.message || '';
+
+            // Eğer dosya eki olarak geldiyse ekten çek
+            if (eventData.attachment && eventData.attachment.url) {
+              try {
+                const res = await fetch(eventData.attachment.url);
+                if (res.ok) {
+                  msgText = await res.text();
+                } else {
+                  console.warn('Attachment download returned status:', res.status);
+                  return;
+                }
+              } catch (err) {
+                console.warn('Attachment fetch error:', err);
+                return;
+              }
+            }
+
+            if (!msgText) return;
+
+            // Çok parçalı aktarım (chunking) kontrolü
+            if (msgText.startsWith('KEYRA_CHUNK:')) {
+              const parts = msgText.split(':');
+              if (parts.length >= 3) {
+                const meta = parts[1].split('/');
+                const idx = parseInt(meta[0], 10);
+                const total = parseInt(meta[1], 10);
+                const chunkContent = parts.slice(2).join(':');
+
+                incomingChunks[idx] = chunkContent;
+                document.getElementById('statusText').innerText = `Veri Alınıyor... (%${Math.round((Object.keys(incomingChunks).length / total) * 100)})`;
+
+                if (Object.keys(incomingChunks).length === total) {
+                  let combined = '';
+                  for (let i = 1; i <= total; i++) {
+                    combined += incomingChunks[i];
+                  }
+                  incomingChunks = {};
+                  await handleReceivedEncryptedData(combined);
+                }
+              }
+              return;
+            }
+
+            // Tek parça Base64 kontrolü (boşluksuz ve en az 30 karakter)
+            const clean = msgText.trim();
+            if (clean.length > 30 && !clean.includes(' ')) {
+              await handleReceivedEncryptedData(clean);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to parse relay event:', err);
+        }
+      };
+
+      eventSource.onerror = () => {
+        console.warn('EventSource disconnected, retrying...');
+      };
+    }
+
+    // 3. DECRYPT INCOMING DATA VIA WEB CRYPTO (AES-CBC)
+    async function handleReceivedEncryptedData(combinedB64) {
+      try {
+        const rawKey = hexToBytes(currentKeyHex);
+        const combined = base64ToBytes(combinedB64);
+        const iv = combined.subarray(0, 16);
+        const ciphertext = combined.subarray(16);
+
+        const cryptoKey = await window.crypto.subtle.importKey(
+          'raw',
+          rawKey,
+          { name: 'AES-CBC' },
+          false,
+          ['decrypt']
+        );
+
+        const decrypted = await window.crypto.subtle.decrypt(
+          { name: 'AES-CBC', iv },
+          cryptoKey,
+          ciphertext
+        );
+
+        const jsonStr = new TextDecoder().decode(decrypted);
+        const payload = JSON.parse(jsonStr);
+
+        vaultEntries = payload.entries || [];
+        rawKdbxBase64 = payload.kdbxBase64 || null;
+        currentVaultName = payload.vaultFileName || 'Keyra.kdbx';
+
+        showDashboard();
+        showToast('Kasaya başarıyla bağlandı.');
+      } catch (err) {
+        console.error('Decryption failed:', err);
+        showToast('Şifre çözme hatası!');
+      }
+    }
+
+    // 4. TRANSITION TO DASHBOARD
+    function showDashboard() {
+      document.getElementById('pairingView').style.display = 'none';
+      document.getElementById('dashboardView').style.display = 'flex';
+      document.getElementById('downloadKdbxBtn').style.display = 'inline-flex';
+      document.getElementById('disconnectBtn').style.display = 'inline-flex';
+
+      document.getElementById('statusDot').className = 'pulse-dot connected';
+      document.getElementById('statusText').innerText = 'Bağlandı';
+
+      document.getElementById('dashVaultTitle').innerText = currentVaultName;
+      document.getElementById('dashVaultSubtitle').innerText = `${vaultEntries.length} kayıt • Uçtan uca şifreli oturum`;
+
+      renderEntries(vaultEntries);
+    }
+
+    // 5. RENDER ENTRIES
+    function renderEntries(entries) {
+      const grid = document.getElementById('entriesGrid');
+      grid.innerHTML = '';
+
+      if (entries.length === 0) {
+        grid.innerHTML = '<div class="empty-state">Eşleşen kayıt bulunamadı.</div>';
+        return;
+      }
+
+      entries.forEach((entry) => {
+        const pal = getMonogramStyle(entry.title);
+        const mono = deriveMonogram(entry.title);
+
+        const card = document.createElement('div');
+        card.className = 'entry-card';
+        card.innerHTML = `
+          <div class="entry-top">
+            <div class="monogram-avatar" style="background: ${pal.bg}; color: ${pal.text}; border: 1px solid ${pal.border};">
+              ${mono}
+            </div>
+            <div class="entry-title-wrap">
+              <div class="entry-title">${escapeHtml(entry.title)}</div>
+              <div class="entry-category-badge">${escapeHtml(entry.category || 'Kayıt')}</div>
+            </div>
+          </div>
+
+          <div class="entry-fields">
+            <div class="field-row">
+              <span class="field-label">KULLANICI</span>
+              <span class="field-value">${escapeHtml(entry.username || '—')}</span>
+              ${entry.username ? `<button class="field-action-btn" onclick="copyToClipboard('${escapeJs(entry.username)}', 'Kullanıcı adı kopyalandı', this)">${SVG_COPY} Kopyala</button>` : ''}
+            </div>
+
+            <div class="field-row">
+              <span class="field-label">ŞİFRE</span>
+              <span class="field-value" id="pw_${entry.id}">••••••••••••</span>
+              <div style="display: flex; gap: 4px;">
+                <button class="field-action-btn" id="btn_pw_${entry.id}" onclick="togglePassword('${entry.id}', '${escapeJs(entry.password)}', this)">${SVG_EYE}</button>
+                <button class="field-action-btn" onclick="copyToClipboard('${escapeJs(entry.password)}', 'Şifre kopyalandı', this)">${SVG_COPY} Kopyala</button>
+              </div>
+            </div>
+
+            ${entry.url ? `
+              <div class="field-row">
+                <span class="field-label">URL</span>
+                <span class="field-value" style="color: #FFFFFF; text-decoration: underline; cursor: pointer;" onclick="window.open('${escapeJs(entry.url)}', '_blank')">${escapeHtml(entry.url)}</span>
+              </div>
+            ` : ''}
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+    }
+
+    // 6. TOGGLE PASSWORD VISIBILITY
+    const visiblePasswords = new Set();
+    function togglePassword(id, realPw, btn) {
+      const el = document.getElementById(`pw_${id}`);
+      if (!el) return;
+      if (visiblePasswords.has(id)) {
+        visiblePasswords.delete(id);
+        el.innerText = '••••••••••••';
+        if (btn) btn.innerHTML = SVG_EYE;
+      } else {
+        visiblePasswords.add(id);
+        el.innerText = realPw;
+        if (btn) btn.innerHTML = SVG_EYE_OFF;
+      }
+    }
+
+    // 7. SEARCH & FILTER
+    function handleSearch() {
+      const q = document.getElementById('searchInput').value.trim().toLowerCase();
+      const filtered = vaultEntries.filter((entry) => {
+        if (activeCategory !== 'all' && entry.category !== activeCategory) return false;
+        if (!q) return true;
+        return [entry.title, entry.username, entry.url || ''].some(f => f.toLowerCase().includes(q));
+      });
+      renderEntries(filtered);
+    }
+
+    function setCategoryFilter(cat, btn) {
+      activeCategory = cat;
+      document.querySelectorAll('.category-pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      handleSearch();
+    }
+
+    // 8. CLIPBOARD & TOAST
+    function copyToClipboard(text, msg, btn) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(msg);
+        if (btn) {
+          const origHtml = btn.innerHTML;
+          btn.innerHTML = `${SVG_CHECK} Kopyalandı`;
+          setTimeout(() => {
+            btn.innerHTML = origHtml;
+          }, 1500);
+        }
+      });
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toastBox');
+      document.getElementById('toastMsg').innerText = msg;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2500);
+    }
+
+    // 9. DOWNLOAD .KDBX FILE
+    function downloadRawKdbx() {
+      if (!rawKdbxBase64) {
+        showToast('KDBX ham dosyası mevcut değil.');
+        return;
+      }
+      const bytes = base64ToBytes(rawKdbxBase64);
+      const blob = new Blob([bytes], { type: 'application/octet-stream' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = currentVaultName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast(`"${currentVaultName}" bilgisayara indirildi!`);
+    }
+
+    // 10. DISCONNECT / WIPE
+    function disconnectSession() {
+      if (eventSource) eventSource.close();
+      vaultEntries = [];
+      rawKdbxBase64 = null;
+      document.getElementById('dashboardView').style.display = 'none';
+      document.getElementById('downloadKdbxBtn').style.display = 'none';
+      document.getElementById('disconnectBtn').style.display = 'none';
+      document.getElementById('pairingView').style.display = 'flex';
+      initPairing();
+      showToast('Oturum kapatıldı ve bellek temizlendi.');
+    }
+
+    // UTILITIES
+    function hexToBytes(hex) {
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+      }
+      return bytes;
+    }
+
+    function base64ToBytes(base64) {
+      if (!base64 || typeof base64 !== 'string') {
+        throw new Error('Base64 verisi boş veya geçersiz tipte');
+      }
+      const clean = base64.trim().replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
+      const pad = clean.length % 4 === 0 ? clean : clean + '='.repeat(4 - (clean.length % 4));
+      const bin = atob(pad);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) {
+        bytes[i] = bin.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
+    function escapeJs(str) {
+      return (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    }
+
+    // INIT ON LOAD
+    window.addEventListener('DOMContentLoaded', initPairing);
+  </script>
+</body>
+</html>
+

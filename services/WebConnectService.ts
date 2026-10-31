@@ -62,42 +62,55 @@ class WebConnectService {
     entries: VaultEntry[]
   ): Promise<boolean> {
     try {
-      // 1. Raw .kdbx dosyasını al (PC'de tek tıkla .kdbx indirme imkanı için)
-      let kdbxBase64: string | undefined = undefined;
-      try {
-        const rawAb = await kdbxService.getCurrentVaultBuffer();
-        if (rawAb) {
-          kdbxBase64 = Buffer.from(rawAb).toString('base64');
-        }
-      } catch (err) {
-        console.warn('[WebConnect] Raw KDBX buffer could not be extracted:', err);
-      }
-
-      // 2. Transfer verisini hazırla
+      // 1. Transfer verisini hazırla (PC'de görüntüleme ve tek tıkla kopyalama için)
       const transferData: WebTransferPayload = {
         vaultFileName,
         entries,
-        kdbxBase64,
         syncedAt: new Date().toISOString(),
       };
 
       const jsonStr = JSON.stringify(transferData);
 
-      // 3. Uçtan uca AES-256-CBC ile şifrele
+      // 2. Uçtan uca AES-256-CBC ile şifrele
       const encryptedBase64 = this.encryptPayload(jsonStr, keyHex);
 
-      // 4. Relay üzerinden PC'ye doğrudan mesaj olarak gönder (Dosya eki formatına sokmadan)
-      const res = await fetch(`https://ntfy.sh/${sessionId}`, {
-        method: 'POST',
-        headers: {
-          Title: 'Keyra Web Sync',
-          Priority: 'urgent',
-        },
-        body: encryptedBase64,
-      });
+      // 3. Relay üzerinden PC'ye gönder.
+      // ntfy.sh 4096 bayttan büyük mesajları otomatik dosya ekine (attachment) dönüştürür
+      // ve dosya eklerinde IP bazlı 429 kota hatası verir.
+      // Bu yüzden CHUNK_SIZE = 3500 ile parçalayarak düz metin olarak gönderiyoruz.
+      const CHUNK_SIZE = 3500;
+      if (encryptedBase64.length <= CHUNK_SIZE) {
+        const res = await fetch(`https://ntfy.sh/${sessionId}`, {
+          method: 'POST',
+          headers: {
+            'X-Cache': 'no',
+            Priority: 'urgent',
+          },
+          body: encryptedBase64,
+        });
 
-      if (!res.ok) {
-        throw new Error(`Relay response status: ${res.status}`);
+        if (!res.ok) {
+          throw new Error(`Relay response status: ${res.status}`);
+        }
+      } else {
+        const totalChunks = Math.ceil(encryptedBase64.length / CHUNK_SIZE);
+        for (let i = 0; i < totalChunks; i++) {
+          const chunkData = encryptedBase64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+          const chunkMsg = `KEYRA_CHUNK:${i + 1}/${totalChunks}:${chunkData}`;
+          const res = await fetch(`https://ntfy.sh/${sessionId}`, {
+            method: 'POST',
+            headers: {
+              'X-Cache': 'no',
+              Priority: 'urgent',
+            },
+            body: chunkMsg,
+          });
+
+          if (!res.ok) {
+            throw new Error(`Relay chunk ${i + 1} status: ${res.status}`);
+          }
+          await new Promise((r) => setTimeout(r, 60));
+        }
       }
 
       return true;

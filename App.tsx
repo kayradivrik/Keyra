@@ -57,37 +57,37 @@ declare const global: {
 global.Buffer = Buffer;
 
 const COLORS = {
-  background: '#090A0F', // Koyu Obsidian zemin
-  foreground: '#F8FAFC', // Slate 50 net metin
-  card: '#12141D',       // Yükseltilmiş kart yüzeyi
-  cardHighlight: '#1A1D2A',
-  surface: '#151824',    // Form & Input arka planı
-  surfaceLight: '#1F2435',
-  primary: '#6366F1',    // Keyra Electric Indigo ana marka rengi
-  primaryHover: '#4F46E5',
-  primaryForeground: '#FFFFFF',
-  cyanAccent: '#38BDF8', // Neon Cyan vurgusu
-  emerald: '#10B981',    // Başarı & Güçlü Şifre
-  amber: '#F59E0B',      // Orta Şifre / Uyarı
-  dangerRed: '#EF4444',  // Hata & Silme
+  background: '#08090C',        // Saf obsidian grafit zemin
+  foreground: '#FFFFFF',        // %100 saf beyaz başlıklar
+  card: '#111218',              // Dokunsal mat kart zemini
+  cardHighlight: '#161720',
+  surface: '#151620',           // Form & Input arka planı
+  surfaceLight: '#1B1D28',
+  primary: '#FFFFFF',           // Monochromatic Contrast Primary Action (Apple/Linear standardı)
+  primaryHover: '#E5E7EB',
+  primaryForeground: '#08090C', // Saf beyaz buton üzerinde keskin koyu yazı
+  accent: '#E4E4E7',            // Titanyum açık gri
+  cyanAccent: '#38BDF8',        // Canlı Cyan
+  emerald: '#10B981',           // Başarı & Güçlü Şifre
+  amber: '#F59E0B',             // Orta Şifre / Uyarı
+  dangerRed: '#EF4444',         // Hata & Silme
   destructive: '#EF4444',
-  mutedForeground: '#94A3B8', // Slate 400 ikincil metin
-  subtleText: '#64748B', // Slate 500 kılavuz metin
-  border: 'rgba(255, 255, 255, 0.08)', // İnce cam kenarlık
-  borderActive: 'rgba(99, 102, 241, 0.5)',
+  mutedForeground: '#8E92A4',   // Doğal, yormayan gümüş-gri
+  subtleText: '#55596D',        // Kılavuz / placeholder metin
+  border: 'rgba(255, 255, 255, 0.07)', // Saç teli inceliğinde zarif kenarlık
+  borderActive: 'rgba(255, 255, 255, 0.22)',
 };
 
 const MONO_FONT = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
 const CLIPBOARD_CLEAR_MS = 30000;
 
 const MONOGRAM_PALETTES = [
-  { bg: 'rgba(99, 102, 241, 0.16)', text: '#818CF8', border: 'rgba(99, 102, 241, 0.35)' }, // Indigo
-  { bg: 'rgba(16, 185, 129, 0.16)', text: '#34D399', border: 'rgba(16, 185, 129, 0.35)' }, // Emerald
-  { bg: 'rgba(56, 189, 248, 0.16)', text: '#38BDF8', border: 'rgba(56, 189, 248, 0.35)' }, // Sky
-  { bg: 'rgba(236, 72, 153, 0.16)', text: '#F472B6', border: 'rgba(236, 72, 153, 0.35)' }, // Pink
-  { bg: 'rgba(245, 158, 11, 0.16)', text: '#FBBF24', border: 'rgba(245, 158, 11, 0.35)' }, // Amber
-  { bg: 'rgba(168, 85, 247, 0.16)', text: '#C084FC', border: 'rgba(168, 85, 247, 0.35)' }, // Purple
-  { bg: 'rgba(20, 184, 166, 0.16)', text: '#2DD4BF', border: 'rgba(20, 184, 166, 0.35)' }, // Teal
+  { bg: 'rgba(255, 255, 255, 0.08)', text: '#FFFFFF', border: 'rgba(255, 255, 255, 0.16)' }, // Titanium White
+  { bg: 'rgba(16, 185, 129, 0.12)', text: '#34D399', border: 'rgba(16, 185, 129, 0.25)' }, // Emerald
+  { bg: 'rgba(56, 189, 248, 0.12)', text: '#38BDF8', border: 'rgba(56, 189, 248, 0.25)' }, // Sky
+  { bg: 'rgba(245, 158, 11, 0.12)', text: '#FBBF24', border: 'rgba(245, 158, 11, 0.25)' }, // Amber
+  { bg: 'rgba(148, 163, 184, 0.12)', text: '#CBD5E1', border: 'rgba(148, 163, 184, 0.25)' }, // Slate Steel
+  { bg: 'rgba(244, 63, 94, 0.12)',  text: '#FB7185', border: 'rgba(244, 63, 94, 0.25)' }, // Rose
 ];
 
 function getMonogramStyle(str: string) {
@@ -120,7 +120,7 @@ function scorePassword(value: string): number {
 }
 
 const STRENGTH_LABELS = ['Boş', 'Zayıf', 'Orta', 'Güçlü', 'Kırılmaz'];
-const STRENGTH_COLORS = ['#64748B', '#EF4444', '#F59E0B', '#10B981', '#6366F1'];
+const STRENGTH_COLORS = ['#55596D', '#EF4444', '#F59E0B', '#10B981', '#34D399'];
 const GENERATOR_LENGTHS = [12, 16, 24, 32] as const;
 
 // ==========================================
@@ -147,17 +147,13 @@ const EntryCardItem = React.memo(function EntryCardItem({
     };
   }, []);
 
-  const handleCopy = () => {
+  const handleCopy = (e: any) => {
+    e?.stopPropagation?.();
     triggerHaptic('success');
     onCopyText(entry.password, `${entry.title} şifresi`);
     setCopied(true);
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setCopied(false), 1500);
-  };
-
-  const handleToggleReveal = () => {
-    triggerHaptic('light');
-    setRevealed((r) => !r);
+    timerRef.current = setTimeout(() => setCopied(false), 2000);
   };
 
   const monogram = entry.monogram || deriveMonogram(entry.title);
@@ -176,7 +172,7 @@ const EntryCardItem = React.memo(function EntryCardItem({
 
   return (
     <TouchableOpacity
-      activeOpacity={0.82}
+      activeOpacity={0.7}
       onPress={() => {
         triggerHaptic('light');
         onOpenDetail(entry);
@@ -203,61 +199,40 @@ const EntryCardItem = React.memo(function EntryCardItem({
             {entry.title}
           </Text>
           {displayHost ? (
-            <Text style={styles.entryHostBadge} numberOfLines={1}>
-              {displayHost}
-            </Text>
+            <View style={styles.entryHostBadgeWrap}>
+              <Text style={styles.entryHostBadge} numberOfLines={1}>
+                {displayHost}
+              </Text>
+            </View>
           ) : null}
         </View>
 
-        {entry.username ? (
-          <Text style={styles.entryUsername} numberOfLines={1}>
-            {entry.username}
-          </Text>
-        ) : null}
-
-        <TouchableOpacity
-          onPress={handleToggleReveal}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={styles.secretToggleWrap}
-        >
-          <Ionicons
-            name={revealed ? 'eye-off-outline' : 'eye-outline'}
-            size={13}
-            color={COLORS.subtleText}
-            style={{ marginRight: 5 }}
-          />
-          <Text
-            style={[
-              styles.entrySecretMask,
-              revealed && styles.entrySecretMaskRevealed,
-            ]}
-            numberOfLines={1}
-          >
-            {revealed ? entry.password : '••••••••••••'}
-          </Text>
-        </TouchableOpacity>
+        <Text style={styles.entrySubtitle} numberOfLines={1}>
+          {entry.username || (entry.category === 'logins' ? 'Giriş Hesabı' : entry.category) || 'Kayıt'}
+        </Text>
       </View>
 
-      <TouchableOpacity
-        onPress={handleCopy}
-        activeOpacity={0.7}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        style={[styles.copyButton, copied && styles.copyButtonActive]}
-      >
-        <Ionicons
-          name={copied ? 'checkmark-circle' : 'copy-outline'}
-          size={15}
-          color={copied ? COLORS.emerald : COLORS.mutedForeground}
-        />
-        <Text
-          style={[
-            styles.copyButtonText,
-            copied && styles.copyButtonTextActive,
-          ]}
+      <View style={styles.entryRightActions}>
+        <TouchableOpacity
+          onPress={handleCopy}
+          activeOpacity={0.65}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={[styles.quickCopyButton, copied && styles.quickCopyButtonCopied]}
         >
-          {copied ? 'Kopyalandı' : 'Kopyala'}
-        </Text>
-      </TouchableOpacity>
+          <Ionicons
+            name={copied ? 'checkmark' : 'copy-outline'}
+            size={16}
+            color={copied ? COLORS.emerald : COLORS.mutedForeground}
+          />
+        </TouchableOpacity>
+
+        <Ionicons
+          name="chevron-forward"
+          size={14}
+          color="rgba(255, 255, 255, 0.2)"
+          style={{ marginLeft: 6 }}
+        />
+      </View>
     </TouchableOpacity>
   );
 });
@@ -433,6 +408,9 @@ export default function App() {
           ownerName: profile.ownerName,
           fileName: profile.activeVaultFile,
         }));
+        if (profile.knownVaults && profile.knownVaults.length > 0) {
+          setAuthMode('unlock');
+        }
         await refreshBiometricState(profile.activeVaultFile);
         const gState = await googleDriveSync.loadState();
         setGdriveState(gState);
@@ -1116,7 +1094,7 @@ export default function App() {
           vaultState.entries
         );
         triggerHaptic('success');
-        showToast('Bilgisayara bağlandı! Şifreleriniz tarayıcıda açıldı. 💻');
+        showToast('Bilgisayara bağlandı! Şifreleriniz tarayıcıda açıldı.');
       } catch {
         triggerHaptic('error');
         Alert.alert(
@@ -1194,231 +1172,71 @@ export default function App() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* Üst Sekme Çubuğu */}
-            <View style={styles.modeSwitchBar}>
-              <TouchableOpacity
-                onPress={() => {
-                  triggerHaptic('light');
-                  setErrorMessage(null);
-                  setAuthMode('welcome');
-                }}
-                style={[
-                  styles.modeSwitchTab,
-                  authMode === 'welcome' && styles.modeSwitchTabActive,
-                ]}
-              >
-                <Ionicons
-                  name="sparkles-outline"
-                  size={13}
-                  color={authMode === 'welcome' ? '#FFF' : COLORS.mutedForeground}
-                  style={{ marginRight: 4 }}
-                />
-                <Text
-                  style={[
-                    styles.modeSwitchTabText,
-                    authMode === 'welcome' && styles.modeSwitchTabTextActive,
-                  ]}
-                >
-                  Başlangıç
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => {
-                  triggerHaptic('light');
-                  goToCreateMode();
-                }}
-                style={[
-                  styles.modeSwitchTab,
-                  authMode === 'create' && styles.modeSwitchTabActive,
-                ]}
-              >
-                <Ionicons
-                  name="add-circle-outline"
-                  size={13}
-                  color={authMode === 'create' ? '#FFF' : COLORS.mutedForeground}
-                  style={{ marginRight: 4 }}
-                />
-                <Text
-                  style={[
-                    styles.modeSwitchTabText,
-                    authMode === 'create' && styles.modeSwitchTabTextActive,
-                  ]}
-                >
-                  Yeni Kasa
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => {
-                  triggerHaptic('light');
-                  goToUnlockMode();
-                }}
-                style={[
-                  styles.modeSwitchTab,
-                  authMode === 'unlock' && styles.modeSwitchTabActive,
-                ]}
-              >
-                <Ionicons
-                  name="key-outline"
-                  size={13}
-                  color={authMode === 'unlock' ? '#FFF' : COLORS.mutedForeground}
-                  style={{ marginRight: 4 }}
-                />
-                <Text
-                  style={[
-                    styles.modeSwitchTabText,
-                    authMode === 'unlock' && styles.modeSwitchTabTextActive,
-                  ]}
-                >
-                  Kasaya Gir
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Logo & Başlık */}
-            <View style={styles.lockHero}>
-              <View style={styles.logoImageWrap}>
-                <Image
-                  source={require('./assets/keyra-logo.png')}
-                  style={styles.logoImage}
-                  resizeMode="cover"
-                />
-              </View>
-              <View style={styles.lockBrandWrap}>
-                <Text style={styles.lockBrandTitle}>Keyra</Text>
-                <Text style={styles.lockBrandSubtitle}>KeePass • %100 Çevrimdışı Kasa</Text>
-              </View>
-            </View>
-
             {/* =====================================================
-               MOD 1: BAŞLANGIÇ EKRANI
+               MOD 1: KASAYA GİR (UNLOCK - GÜNLÜK KULLANICI DENEYİMİ)
                ===================================================== */}
-            {authMode === 'welcome' && (
+            {authMode === 'unlock' && (
               <View style={styles.lockForm}>
-                <View style={styles.welcomeCard}>
-                  <Text style={styles.fieldLabel}>ADINIZ</Text>
-                  <View style={styles.ownerInputRow}>
-                    <View style={styles.ownerAvatarBox}>
-                      <Text style={styles.ownerAvatarText}>
-                        {deriveMonogram(ownerNameInput || 'AV')}
+                <View style={styles.lockHero}>
+                  <View style={styles.logoImageWrap}>
+                    <Image
+                      source={require('./assets/keyra-logo.png')}
+                      style={styles.logoImage}
+                      resizeMode="cover"
+                    />
+                  </View>
+                  <View style={styles.lockBrandWrap}>
+                    <Text style={styles.lockBrandTitle}>Keyra</Text>
+                    <View style={styles.activeVaultPill}>
+                      <Ionicons name="lock-closed" size={12} color={COLORS.primary} style={{ marginRight: 5 }} />
+                      <Text style={styles.activeVaultPillText} numberOfLines={1}>
+                        {vaultState.fileName}
                       </Text>
                     </View>
-                    <TextInput
-                      style={styles.ownerTextInput}
-                      value={ownerNameInput}
-                      onChangeText={handleOwnerNameChange}
-                      placeholder="Adınızı girin (Örn: Kuzey)"
-                      placeholderTextColor={COLORS.mutedForeground}
-                      autoCapitalize="words"
-                      autoCorrect={false}
-                    />
                   </View>
                 </View>
 
-                {errorMessage && (
-                  <View style={styles.errorBanner}>
-                    <Text style={styles.errorBannerText}>{errorMessage}</Text>
-                  </View>
-                )}
-
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={goToCreateMode}
-                  style={styles.unlockButton}
-                >
-                  <Text style={styles.unlockButtonText}>
-                    Kendime Kasa Oluştur
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={goToUnlockMode}
-                  style={styles.secondaryCardButton}
-                >
-                  <View>
-                    <Text style={styles.secondaryCardTitle}>Kasaya Gir</Text>
-                    <Text style={styles.secondaryCardSub}>
-                      {knownVaults.length > 0
-                        ? `Aktif: ${vaultState.fileName}`
-                        : 'Mevcut kasanızı şifrenizle açın'}
-                    </Text>
-                  </View>
-                  <Text style={styles.secondaryCardArrow}>›</Text>
-                </TouchableOpacity>
-
-                {biometricSupported && biometricEnabledForActive && (
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={handleBiometricUnlock}
-                    style={styles.biometricUnlockButton}
+                {/* Birden fazla kasa varsa minimalist yatay seçici */}
+                {knownVaults.length > 1 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.vaultChipsScroll}
                   >
-                    <Text style={styles.biometricUnlockText}>
-                      Parmak İzi / Yüz Tanıma ile Hızlı Gir ({vaultState.fileName})
-                    </Text>
-                  </TouchableOpacity>
+                    {knownVaults.map((vaultFile) => {
+                      const active = vaultState.fileName === vaultFile;
+                      return (
+                        <TouchableOpacity
+                          key={vaultFile}
+                          onPress={() => handleSelectKnownVault(vaultFile)}
+                          style={[
+                            styles.vaultChip,
+                            active && styles.vaultChipActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.vaultChipText,
+                              active && styles.vaultChipTextActive,
+                            ]}
+                          >
+                            {vaultFile}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
                 )}
 
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={handleImportKdbxFile}
-                  style={styles.importDeviceFullButton}
-                >
-                  <Text style={styles.importDeviceFullText}>
-                    Cihazdan .kdbx Dosyası Yükle
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* =====================================================
-               MOD 2: YENİ KASA OLUŞTUR
-               ===================================================== */}
-            {authMode === 'create' && (
-              <View style={styles.lockForm}>
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>ADINIZ</Text>
+                {/* Şifre Giriş Kartı */}
+                <View style={styles.passwordCard}>
                   <View style={styles.passwordBox}>
-                    <TextInput
-                      style={styles.passwordInput}
-                      value={ownerNameInput}
-                      onChangeText={handleOwnerNameChange}
-                      placeholder="Örn: Kuzey"
-                      placeholderTextColor={COLORS.mutedForeground}
-                      autoCapitalize="words"
-                      autoCorrect={false}
+                    <Ionicons
+                      name="key-outline"
+                      size={18}
+                      color={COLORS.subtleText}
+                      style={{ marginRight: 10 }}
                     />
-                  </View>
-                </View>
-
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>KASA ADI (.KDBX)</Text>
-                  <View style={styles.passwordBox}>
-                    <TextInput
-                      style={styles.passwordInput}
-                      value={customVaultName}
-                      onChangeText={(t) => {
-                        setCustomVaultName(t);
-                        if (errorMessage) setErrorMessage(null);
-                      }}
-                      placeholder="Örn: Kuzey.kdbx"
-                      placeholderTextColor={COLORS.mutedForeground}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.fieldGroup}>
-                  <View style={styles.fieldLabelRow}>
-                    <Text style={styles.fieldLabel}>ANA ŞİFRE</Text>
-                    <TouchableOpacity onPress={generateMasterPasswordSuggestion}>
-                      <Text style={styles.regenerateLink}>Güçlü Şifre Öner</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.passwordBox}>
                     <TextInput
                       style={styles.passwordInput}
                       value={password}
@@ -1427,59 +1245,243 @@ export default function App() {
                         if (errorMessage) setErrorMessage(null);
                       }}
                       secureTextEntry={!visiblePassword}
-                      placeholder="Kasa şifrenizi belirleyin"
-                      placeholderTextColor={COLORS.mutedForeground}
+                      placeholder="Kasa Ana Şifreniz"
+                      placeholderTextColor={COLORS.subtleText}
                       autoCapitalize="none"
                       autoCorrect={false}
                     />
                     <TouchableOpacity
                       onPress={() => setVisiblePassword((v) => !v)}
                       style={styles.eyeButton}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <Text style={styles.eyeIconText}>
-                        {visiblePassword ? 'Gizle' : 'Göster'}
-                      </Text>
+                      <Ionicons
+                        name={visiblePassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={18}
+                        color={COLORS.mutedForeground}
+                      />
                     </TouchableOpacity>
                   </View>
 
-                  <View style={styles.strengthRow}>
-                    <View style={styles.strengthBars}>
-                      {[1, 2, 3, 4].map((segment) => {
-                        const active = segment <= score;
-                        return (
-                          <View
-                            key={segment}
-                            style={[
-                              styles.strengthSegment,
-                              active
-                                ? isStrong
-                                  ? styles.strengthPrimary
-                                  : styles.strengthDestructive
-                                : styles.strengthInactive,
-                            ]}
-                          />
-                        );
-                      })}
+                  {biometricSupported && !biometricEnabledForActive && (
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => setSaveBiometricOnAuth((v) => !v)}
+                      style={styles.checkboxRow}
+                    >
+                      <View
+                        style={[
+                          styles.checkboxBox,
+                          saveBiometricOnAuth && styles.checkboxBoxChecked,
+                        ]}
+                      >
+                        {saveBiometricOnAuth && (
+                          <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                        )}
+                      </View>
+                      <Text style={styles.checkboxLabel}>
+                        Sonraki girişler için Biyometrik Kilidi kaydet
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {errorMessage && (
+                    <View style={styles.errorBanner}>
+                      <Ionicons name="alert-circle-outline" size={15} color={COLORS.dangerRed} style={{ marginRight: 6 }} />
+                      <Text style={styles.errorBannerText}>{errorMessage}</Text>
                     </View>
-                    <Text style={styles.strengthLabel}>
-                      {STRENGTH_LABELS[score]}
-                    </Text>
-                  </View>
+                  )}
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    disabled={!password.trim() || authStatus === 'deriving'}
+                    onPress={handleUnlock}
+                    style={[
+                      styles.unlockButton,
+                      (!password.trim() || authStatus === 'deriving') &&
+                        styles.unlockButtonDisabled,
+                    ]}
+                  >
+                    {authStatus === 'deriving' ? (
+                      <View style={styles.derivingRow}>
+                        <ActivityIndicator
+                          size="small"
+                          color={COLORS.primaryForeground}
+                        />
+                        <Text style={styles.unlockButtonText}>
+                          {derivingProgress || 'Açılıyor...'}
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.unlockButtonText}>Kasayı Aç</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  {biometricSupported && biometricEnabledForActive && (
+                    <TouchableOpacity
+                      activeOpacity={0.82}
+                      onPress={handleBiometricUnlock}
+                      style={styles.biometricButton}
+                    >
+                      <Ionicons
+                        name="finger-print-outline"
+                        size={20}
+                        color={COLORS.foreground}
+                        style={{ marginRight: 8 }}
+                      />
+                      <Text style={styles.biometricButtonText}>
+                        Biyometrik Kilit ile Hızlı Aç
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
 
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>ANA ŞİFRE TEKRARI</Text>
-                  <View style={styles.passwordBox}>
+                {/* Alt Minimalist Bağlantılar */}
+                <View style={styles.lockFooterLinks}>
+                  <TouchableOpacity onPress={goToCreateMode} style={styles.footerLinkBtn}>
+                    <Ionicons name="add-circle-outline" size={15} color={COLORS.mutedForeground} style={{ marginRight: 5 }} />
+                    <Text style={styles.footerLinkText}>Yeni Kasa</Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.footerDot} />
+
+                  <TouchableOpacity onPress={handleImportKdbxFile} style={styles.footerLinkBtn}>
+                    <Ionicons name="folder-open-outline" size={15} color={COLORS.mutedForeground} style={{ marginRight: 5 }} />
+                    <Text style={styles.footerLinkText}>.kdbx Aç</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* =====================================================
+               MOD 2: YENİ KASA OLUŞTUR
+               ===================================================== */}
+            {authMode === 'create' && (
+              <View style={styles.lockForm}>
+                <View style={styles.createTopNav}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      triggerHaptic('light');
+                      if (knownVaults.length > 0) goToUnlockMode();
+                      else setAuthMode('welcome');
+                    }}
+                    style={styles.createBackBtn}
+                  >
+                    <Ionicons name="chevron-back" size={20} color={COLORS.mutedForeground} />
+                    <Text style={styles.createBackText}>Geri</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.createTitle}>Yeni Kasa</Text>
+                  <View style={{ width: 50 }} />
+                </View>
+
+                <View style={styles.groupedFormCard}>
+                  <View style={styles.formRow}>
+                    <Text style={styles.formRowLabel}>ADINIZ</Text>
                     <TextInput
-                      style={styles.passwordInput}
+                      style={styles.formRowInput}
+                      value={ownerNameInput}
+                      onChangeText={handleOwnerNameChange}
+                      placeholder="Örn: Kuzey"
+                      placeholderTextColor={COLORS.subtleText}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                    />
+                  </View>
+
+                  <View style={styles.formDivider} />
+
+                  <View style={styles.formRow}>
+                    <Text style={styles.formRowLabel}>KASA DOSYA ADI</Text>
+                    <TextInput
+                      style={styles.formRowInput}
+                      value={customVaultName}
+                      onChangeText={(t) => {
+                        setCustomVaultName(t);
+                        if (errorMessage) setErrorMessage(null);
+                      }}
+                      placeholder="Örn: Kuzey.kdbx"
+                      placeholderTextColor={COLORS.subtleText}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+
+                  <View style={styles.formDivider} />
+
+                  <View style={styles.formRow}>
+                    <View style={styles.fieldLabelRow}>
+                      <Text style={styles.formRowLabel}>ANA ŞİFRE</Text>
+                      <TouchableOpacity onPress={generateMasterPasswordSuggestion}>
+                        <Text style={styles.regenerateLink}>Şifre Öner</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.inputInnerRow}>
+                      <TextInput
+                        style={styles.formRowInputInner}
+                        value={password}
+                        onChangeText={(t) => {
+                          setPassword(t);
+                          if (errorMessage) setErrorMessage(null);
+                        }}
+                        secureTextEntry={!visiblePassword}
+                        placeholder="Kasa şifrenizi belirleyin"
+                        placeholderTextColor={COLORS.subtleText}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      <TouchableOpacity
+                        onPress={() => setVisiblePassword((v) => !v)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons
+                          name={visiblePassword ? 'eye-off-outline' : 'eye-outline'}
+                          size={18}
+                          color={COLORS.mutedForeground}
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    {password.length > 0 && (
+                      <View style={styles.strengthRow}>
+                        <View style={styles.strengthBars}>
+                          {[1, 2, 3, 4].map((segment) => {
+                            const active = segment <= score;
+                            return (
+                              <View
+                                key={segment}
+                                style={[
+                                  styles.strengthSegment,
+                                  active
+                                    ? isStrong
+                                      ? styles.strengthPrimary
+                                      : styles.strengthDestructive
+                                    : styles.strengthInactive,
+                                ]}
+                              />
+                            );
+                          })}
+                        </View>
+                        <Text style={styles.strengthLabel}>
+                          {STRENGTH_LABELS[score]}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.formDivider} />
+
+                  <View style={styles.formRow}>
+                    <Text style={styles.formRowLabel}>ŞİFRE TEKRARI</Text>
+                    <TextInput
+                      style={styles.formRowInput}
                       value={confirmPassword}
                       onChangeText={(t) => {
                         setConfirmPassword(t);
                         if (errorMessage) setErrorMessage(null);
                       }}
                       secureTextEntry={!visiblePassword}
-                      placeholder="Şifrenizi tekrar girin"
-                      placeholderTextColor={COLORS.mutedForeground}
+                      placeholder="Şifrenizi onaylayın"
+                      placeholderTextColor={COLORS.subtleText}
                       autoCapitalize="none"
                       autoCorrect={false}
                     />
@@ -1499,7 +1501,7 @@ export default function App() {
                       ]}
                     >
                       {saveBiometricOnAuth && (
-                        <Text style={styles.checkboxTick}>✓</Text>
+                        <Ionicons name="checkmark" size={14} color="#FFFFFF" />
                       )}
                     </View>
                     <Text style={styles.checkboxLabel}>
@@ -1510,6 +1512,7 @@ export default function App() {
 
                 {errorMessage && (
                   <View style={styles.errorBanner}>
+                    <Ionicons name="alert-circle-outline" size={15} color={COLORS.dangerRed} style={{ marginRight: 6 }} />
                     <Text style={styles.errorBannerText}>{errorMessage}</Text>
                   </View>
                 )}
@@ -1538,154 +1541,64 @@ export default function App() {
             )}
 
             {/* =====================================================
-               MOD 3: KASAYA GİR
+               MOD 3: İLK KURULUM (WELCOME)
                ===================================================== */}
-            {authMode === 'unlock' && (
+            {authMode === 'welcome' && (
               <View style={styles.lockForm}>
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>SEÇİLİ KASA</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
-                  >
-                    {(knownVaults.length > 0
-                      ? knownVaults
-                      : [vaultState.fileName]
-                    ).map((vaultFile) => {
-                      const active = vaultState.fileName === vaultFile;
-                      return (
-                        <TouchableOpacity
-                          key={vaultFile}
-                          onPress={() => handleSelectKnownVault(vaultFile)}
-                          style={[
-                            styles.filterPill,
-                            active
-                              ? styles.filterPillActive
-                              : styles.filterPillInactive,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.filterPillText,
-                              active
-                                ? styles.filterPillTextActive
-                                : styles.filterPillTextInactive,
-                            ]}
-                          >
-                            {vaultFile}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-
-                    <TouchableOpacity
-                      onPress={handleImportKdbxFile}
-                      style={[styles.filterPill, styles.filterPillInactive]}
-                    >
-                      <Text
-                        style={[
-                          styles.filterPillText,
-                          { color: COLORS.primary },
-                        ]}
-                      >
-                        + Dosya Seç
-                      </Text>
-                    </TouchableOpacity>
-                  </ScrollView>
-                </View>
-
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>ANA ŞİFRE</Text>
-                  <View style={styles.passwordBox}>
-                    <TextInput
-                      style={styles.passwordInput}
-                      value={password}
-                      onChangeText={(t) => {
-                        setPassword(t);
-                        if (errorMessage) setErrorMessage(null);
-                      }}
-                      secureTextEntry={!visiblePassword}
-                      placeholder="Kasa şifrenizi girin"
-                      placeholderTextColor={COLORS.mutedForeground}
-                      autoCapitalize="none"
-                      autoCorrect={false}
+                <View style={styles.lockHero}>
+                  <View style={styles.logoImageWrap}>
+                    <Image
+                      source={require('./assets/keyra-logo.png')}
+                      style={styles.logoImage}
+                      resizeMode="cover"
                     />
-                    <TouchableOpacity
-                      onPress={() => setVisiblePassword((v) => !v)}
-                      style={styles.eyeButton}
-                    >
-                      <Text style={styles.eyeIconText}>
-                        {visiblePassword ? 'Gizle' : 'Göster'}
-                      </Text>
-                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.lockBrandWrap}>
+                    <Text style={styles.lockBrandTitle}>Keyra</Text>
+                    <Text style={styles.lockBrandSubtitle}>
+                      KeePass • %100 Çevrimdışı & Güvenli Kasa
+                    </Text>
                   </View>
                 </View>
 
-                {biometricSupported && (
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() => setSaveBiometricOnAuth((v) => !v)}
-                    style={styles.checkboxRow}
-                  >
-                    <View
-                      style={[
-                        styles.checkboxBox,
-                        saveBiometricOnAuth && styles.checkboxBoxChecked,
-                      ]}
-                    >
-                      {saveBiometricOnAuth && (
-                        <Text style={styles.checkboxTick}>✓</Text>
-                      )}
-                    </View>
-                    <Text style={styles.checkboxLabel}>
-                      Sonraki girişler için Parmak İzi / Yüz Tanıma kaydet
-                    </Text>
-                  </TouchableOpacity>
-                )}
+                <View style={styles.welcomeIntroCard}>
+                  <View style={styles.introFeatureRow}>
+                    <Ionicons name="shield-checkmark" size={18} color={COLORS.emerald} style={{ marginRight: 10 }} />
+                    <Text style={styles.introFeatureText}>Verileriniz yalnızca bu cihazda kalır, buluta sızmaz.</Text>
+                  </View>
+                  <View style={styles.introFeatureRow}>
+                    <Ionicons name="hardware-chip-outline" size={18} color={COLORS.primary} style={{ marginRight: 10 }} />
+                    <Text style={styles.introFeatureText}>Askeri düzeyde AES & Argon2 şifreleme motoru.</Text>
+                  </View>
+                </View>
 
                 {errorMessage && (
                   <View style={styles.errorBanner}>
+                    <Ionicons name="alert-circle-outline" size={15} color={COLORS.dangerRed} style={{ marginRight: 6 }} />
                     <Text style={styles.errorBannerText}>{errorMessage}</Text>
                   </View>
                 )}
 
                 <TouchableOpacity
                   activeOpacity={0.85}
-                  disabled={!password.trim() || authStatus === 'deriving'}
-                  onPress={handleUnlock}
-                  style={[
-                    styles.unlockButton,
-                    (!password.trim() || authStatus === 'deriving') &&
-                      styles.unlockButtonDisabled,
-                  ]}
+                  onPress={goToCreateMode}
+                  style={styles.unlockButton}
                 >
-                  {authStatus === 'deriving' ? (
-                    <View style={styles.derivingRow}>
-                      <ActivityIndicator
-                        size="small"
-                        color={COLORS.primaryForeground}
-                      />
-                      <Text style={styles.unlockButtonText}>
-                        {derivingProgress || 'Açılıyor...'}
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.unlockButtonText}>Kasaya Gir</Text>
-                  )}
+                  <Text style={styles.unlockButtonText}>
+                    Kendime Kasa Oluştur
+                  </Text>
                 </TouchableOpacity>
 
-                {biometricSupported && biometricEnabledForActive && (
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={handleBiometricUnlock}
-                    style={styles.biometricUnlockButton}
-                  >
-                    <Text style={styles.biometricUnlockText}>
-                      Parmak İzi / Yüz Tanıma ile Aç
-                    </Text>
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  activeOpacity={0.82}
+                  onPress={handleImportKdbxFile}
+                  style={styles.secondaryButton}
+                >
+                  <Ionicons name="folder-open-outline" size={16} color={COLORS.foreground} style={{ marginRight: 8 }} />
+                  <Text style={styles.secondaryButtonText}>
+                    Cihazdan .kdbx Dosyası Aç
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
           </ScrollView>
@@ -2773,14 +2686,14 @@ export default function App() {
                           <TouchableOpacity
                             disabled={gdriveState.isSyncing}
                             onPress={handleSyncWithGoogleDrive}
-                            style={[styles.detailCopyPill, { backgroundColor: COLORS.primary }]}
+                            style={[styles.detailCopyPill, { backgroundColor: '#FFFFFF' }]}
                           >
                             {gdriveState.isSyncing ? (
-                              <ActivityIndicator size="small" color="#FFF" />
+                              <ActivityIndicator size="small" color="#08090C" />
                             ) : (
                               <>
-                                <Ionicons name="sync" size={12} color="#FFF" style={{ marginRight: 4 }} />
-                                <Text style={[styles.detailCopyPillText, { color: '#FFF' }]}>Eşitle</Text>
+                                <Ionicons name="sync" size={12} color="#08090C" style={{ marginRight: 4 }} />
+                                <Text style={[styles.detailCopyPillText, { color: '#08090C', fontWeight: '700' }]}>Eşitle</Text>
                               </>
                             )}
                           </TouchableOpacity>
@@ -2794,9 +2707,9 @@ export default function App() {
                       ) : (
                         <TouchableOpacity
                           onPress={() => setShowTokenInput(true)}
-                          style={[styles.detailCopyPill, { backgroundColor: 'rgba(99, 102, 241, 0.15)', borderColor: COLORS.primary }]}
+                          style={[styles.detailCopyPill, { backgroundColor: 'rgba(255, 255, 255, 0.08)', borderColor: 'rgba(255, 255, 255, 0.18)' }]}
                         >
-                          <Text style={styles.detailCopyPillText}>Bağlan</Text>
+                          <Text style={[styles.detailCopyPillText, { color: '#FFFFFF' }]}>Bağlan</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -2874,10 +2787,10 @@ export default function App() {
                     <View style={styles.inlinePillGroup}>
                       <TouchableOpacity
                         onPress={handleOpenQrScanner}
-                        style={[styles.detailCopyPill, { backgroundColor: 'rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99, 102, 241, 0.35)' }]}
+                        style={[styles.detailCopyPill, { backgroundColor: 'rgba(255, 255, 255, 0.08)', borderColor: 'rgba(255, 255, 255, 0.18)' }]}
                       >
-                        <Ionicons name="scan-outline" size={12} color={COLORS.primary} style={{ marginRight: 4 }} />
-                        <Text style={[styles.detailCopyPillText, { color: COLORS.primary }]}>PC Tara</Text>
+                        <Ionicons name="scan-outline" size={12} color="#FFFFFF" style={{ marginRight: 4 }} />
+                        <Text style={[styles.detailCopyPillText, { color: '#FFFFFF' }]}>PC Tara</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -3071,72 +2984,52 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     zIndex: 100,
-    backgroundColor: COLORS.card,
-    borderColor: COLORS.primary,
+    backgroundColor: '#161722',
+    borderColor: 'rgba(255, 255, 255, 0.14)',
     borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    borderRadius: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
   },
   toastText: {
-    color: COLORS.primary,
+    color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
+    letterSpacing: -0.1,
   },
 
   // --- BAŞLANGIÇ & GİRİŞ EKRANI ---
   lockScrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 32,
-  },
-  modeSwitchBar: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 4,
-    gap: 4,
-  },
-  modeSwitchTab: {
-    flex: 1,
-    flexDirection: 'row',
-    paddingVertical: 9,
-    borderRadius: 9,
-    alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 36,
     justifyContent: 'center',
-  },
-  modeSwitchTabActive: {
-    backgroundColor: COLORS.primary,
-  },
-  modeSwitchTabText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.mutedForeground,
-  },
-  modeSwitchTabTextActive: {
-    color: '#FFFFFF',
   },
   lockHero: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 28,
-    gap: 14,
+    paddingVertical: 24,
+    gap: 12,
   },
   logoImageWrap: {
-    width: 80,
-    height: 80,
-    borderRadius: 22,
+    width: 84,
+    height: 84,
+    borderRadius: 24,
     overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(99, 102, 241, 0.4)',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+    backgroundColor: '#111218',
   },
   logoImage: {
     width: '100%',
@@ -3144,113 +3037,207 @@ const styles = StyleSheet.create({
   },
   lockBrandWrap: {
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   lockBrandTitle: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
-    letterSpacing: 0.5,
-    color: COLORS.foreground,
+    letterSpacing: -0.5,
+    color: '#FFFFFF',
   },
   lockBrandSubtitle: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: COLORS.mutedForeground,
-    letterSpacing: 0.2,
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#8E92A4',
+    letterSpacing: -0.1,
   },
-  welcomeCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
-    padding: 16,
-    gap: 10,
-  },
-  ownerInputRow: {
+  activeVaultPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-  },
-  ownerAvatarBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    marginTop: 4,
+  },
+  activeVaultPillText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#8E92A4',
+    letterSpacing: 0.1,
+  },
+  vaultChipsScroll: {
+    flexDirection: 'row',
+    paddingVertical: 6,
+    gap: 8,
+    marginBottom: 12,
     justifyContent: 'center',
   },
-  ownerAvatarText: {
-    fontFamily: MONO_FONT,
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
-  ownerTextInput: {
-    flex: 1,
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
+  vaultChip: {
     paddingHorizontal: 14,
-    fontSize: 15,
-    color: COLORS.foreground,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.07)',
   },
-  secondaryCardButton: {
+  vaultChipActive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+  },
+  vaultChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#8E92A4',
+  },
+  vaultChipTextActive: {
+    color: '#08090C',
+  },
+  passwordCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.07)',
+    padding: 18,
+    gap: 14,
+  },
+  biometricButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  biometricButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  lockFooterLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+    gap: 10,
+  },
+  footerLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  footerLinkText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#8E92A4',
+  },
+  footerDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  createTopNav: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
-  secondaryCardTitle: {
+  createBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: 6,
+    paddingRight: 10,
+  },
+  createBackText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#8E92A4',
+  },
+  createTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
+  },
+  groupedFormCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.07)',
+    padding: 16,
+  },
+  formRow: {
+    paddingVertical: 8,
+  },
+  formRowLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#55596D',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  formRowInput: {
+    fontSize: 15,
+    color: '#FFFFFF',
+    height: 36,
+    paddingVertical: 0,
+  },
+  formDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    marginVertical: 6,
+  },
+  inputInnerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  formRowInputInner: {
+    flex: 1,
+    fontSize: 15,
+    color: '#FFFFFF',
+    height: 36,
+    paddingVertical: 0,
+  },
+  welcomeIntroCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.07)',
+    padding: 18,
+    gap: 12,
+  },
+  introFeatureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  introFeatureText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#8E92A4',
+    lineHeight: 18,
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  secondaryButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.foreground,
-  },
-  secondaryCardSub: {
-    fontSize: 12,
-    color: COLORS.mutedForeground,
-    marginTop: 2,
-  },
-  secondaryCardArrow: {
-    fontSize: 22,
-    color: COLORS.mutedForeground,
-  },
-  biometricUnlockButton: {
-    height: 48,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(242, 242, 242, 0.45)',
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-  },
-  biometricUnlockText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  importDeviceFullButton: {
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  importDeviceFullText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: COLORS.mutedForeground,
+    color: '#FFFFFF',
   },
   checkboxRow: {
     flexDirection: 'row',
@@ -3341,7 +3328,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   strengthPrimary: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.emerald,
   },
   strengthDestructive: {
     backgroundColor: COLORS.destructive,
@@ -3413,7 +3400,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginRight: 10,
     borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.35)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   dashBrandName: {
     fontSize: 16,
@@ -3506,7 +3493,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   filterPillTextActive: {
-    color: '#FFFFFF',
+    color: '#08090C',
   },
   filterPillTextInactive: {
     color: COLORS.mutedForeground,
@@ -3520,16 +3507,17 @@ const styles = StyleSheet.create({
     paddingBottom: 96,
   },
 
-  // --- KAYIT KARTI ---
+  // --- KAYIT KARTI (HUMAN CRAFTED LIST ROW) ---
   entryCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: 'rgba(255, 255, 255, 0.07)',
     backgroundColor: COLORS.card,
-    padding: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
   },
   monogramBox: {
     width: 44,
@@ -3541,12 +3529,13 @@ const styles = StyleSheet.create({
   },
   monogramText: {
     fontFamily: MONO_FONT,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
   entryCenter: {
     flex: 1,
-    gap: 3,
+    justifyContent: 'center',
+    gap: 2,
   },
   entryTitleRow: {
     flexDirection: 'row',
@@ -3556,34 +3545,43 @@ const styles = StyleSheet.create({
   entryTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.foreground,
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
     maxWidth: '75%',
+  },
+  entryHostBadgeWrap: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
   },
   entryHostBadge: {
     fontSize: 10,
-    fontWeight: '600',
-    color: COLORS.cyanAccent,
-    backgroundColor: 'rgba(56, 189, 248, 0.1)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    fontWeight: '500',
+    color: '#8E92A4',
   },
-  entryUsername: {
+  entrySubtitle: {
     fontSize: 12,
-    color: COLORS.mutedForeground,
+    color: '#55596D',
+    letterSpacing: -0.1,
   },
-  secretToggleWrap: {
+  entryRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 2,
   },
-  entrySecretMask: {
-    fontFamily: MONO_FONT,
-    fontSize: 12,
-    color: COLORS.subtleText,
+  quickCopyButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.07)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  entrySecretMaskRevealed: {
-    color: COLORS.foreground,
+  quickCopyButtonCopied: {
+    borderColor: 'rgba(16, 185, 129, 0.45)',
+    backgroundColor: 'rgba(16, 185, 129, 0.14)',
   },
   copyButton: {
     flexDirection: 'row',
@@ -3641,7 +3639,7 @@ const styles = StyleSheet.create({
   emptyAddBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: COLORS.primaryForeground,
   },
 
   // --- FAB ---
@@ -3649,22 +3647,23 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 20,
     bottom: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.primary,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
     elevation: 8,
   },
   fabIcon: {
-    fontSize: 28,
-    color: '#FFFFFF',
-    lineHeight: 30,
+    fontSize: 26,
+    color: COLORS.primaryForeground,
+    fontWeight: '700',
+    lineHeight: 28,
   },
 
   // --- MODALLAR ---
@@ -3779,7 +3778,7 @@ const styles = StyleSheet.create({
   detailCopyPillText: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: '#FFFFFF',
   },
   detailActionButtons: {
     flexDirection: 'row',
@@ -3842,7 +3841,7 @@ const styles = StyleSheet.create({
   regenerateLink: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: '#FFFFFF',
   },
   generatorOptionsRow: {
     flexDirection: 'row',
@@ -3864,8 +3863,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
   },
   genOptionPillActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary,
+    borderColor: '#FFFFFF',
+    backgroundColor: '#FFFFFF',
   },
   genOptionPillText: {
     fontFamily: MONO_FONT,
@@ -3874,7 +3873,7 @@ const styles = StyleSheet.create({
     color: COLORS.mutedForeground,
   },
   genOptionPillTextActive: {
-    color: '#FFFFFF',
+    color: '#08090C',
   },
   settingTitleText: {
     fontSize: 13,
@@ -3912,9 +3911,9 @@ const styles = StyleSheet.create({
   pinDisplayBox: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.25)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     borderRadius: 14,
     paddingVertical: 10,
     paddingHorizontal: 20,
@@ -3924,7 +3923,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1,
-    color: COLORS.primary,
+    color: '#8E92A4',
     marginBottom: 4,
   },
   pinDisplayText: {

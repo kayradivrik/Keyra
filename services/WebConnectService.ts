@@ -17,7 +17,16 @@ export interface WebTransferPayload {
   syncedAt: string;
 }
 
+export interface DesktopSyncAction {
+  action: 'ADD_ENTRY' | 'UPDATE_ENTRY' | 'DELETE_ENTRY';
+  entry: VaultEntry;
+  timestamp: string;
+}
+
 class WebConnectService {
+  private activePollingInterval: any = null;
+  private lastProcessedTime = Math.floor(Date.now() / 1000);
+  private processedMessageIds = new Set<string>();
   /**
    * Parse QR code scanned from Keyra Web on PC screen.
    */
@@ -50,6 +59,78 @@ class WebConnectService {
     const encrypted = Buffer.concat([cipher.update(plainText, 'utf8'), cipher.final()]);
     const combined = Buffer.concat([iv, encrypted]);
     return combined.toString('base64');
+  }
+
+  /**
+   * Decrypt incoming AES-256-CBC payload from Keyra Desktop.
+   */
+  decryptPayload(base64Payload: string, keyHex: string): string {
+    const combined = Buffer.from(base64Payload, 'base64');
+    const iv = combined.subarray(0, 16);
+    const ciphertext = combined.subarray(16);
+    const key = Buffer.from(keyHex, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    return decrypted.toString('utf8');
+  }
+
+  /**
+   * Start listening for reverse updates (Desktop -> Mobile) via secure channel.
+   */
+  startListeningForDesktopUpdates(
+    sessionId: string,
+    keyHex: string,
+    onAction: (action: DesktopSyncAction) => void
+  ) {
+    this.stopListeningForDesktopUpdates();
+    this.lastProcessedTime = Math.floor(Date.now() / 1000) - 5;
+    this.processedMessageIds.clear();
+
+    const topic = `${sessionId}_to_mobile`;
+
+    this.activePollingInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`https://ntfy.sh/${topic}/json?poll=1&since=${this.lastProcessedTime}`);
+        if (!res.ok) return;
+
+        const text = await res.text();
+        if (!text || text.trim().length === 0) return;
+
+        const lines = text.trim().split('\n');
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line);
+            if (parsed.event === 'message' && parsed.message && !this.processedMessageIds.has(parsed.id)) {
+              this.processedMessageIds.add(parsed.id);
+              if (parsed.time && parsed.time >= this.lastProcessedTime) {
+                this.lastProcessedTime = parsed.time;
+              }
+
+              // Decrypt payload
+              const decryptedStr = this.decryptPayload(parsed.message.trim(), keyHex);
+              const actionData = JSON.parse(decryptedStr) as DesktopSyncAction;
+              if (actionData && actionData.action && actionData.entry) {
+                onAction(actionData);
+              }
+            }
+          } catch (itemErr) {
+            console.warn('[WebConnect] Error parsing item:', itemErr);
+          }
+        }
+      } catch (pollErr) {
+        // Sessizce yut, bir sonraki poll deneyecek
+      }
+    }, 1800);
+  }
+
+  /**
+   * Stop listening for reverse updates.
+   */
+  stopListeningForDesktopUpdates() {
+    if (this.activePollingInterval) {
+      clearInterval(this.activePollingInterval);
+      this.activePollingInterval = null;
+    }
   }
 
   /**

@@ -391,6 +391,7 @@ export default function App() {
   const handleLock = useCallback(
     (silent: boolean = false) => {
       kdbxService.lockVault();
+      webConnectService.stopListeningForDesktopUpdates();
       if (clipboardTimerRef.current) {
         clearTimeout(clipboardTimerRef.current);
         clipboardTimerRef.current = null;
@@ -1239,6 +1240,44 @@ export default function App() {
           entriesToSend,
           rawKdbxB64
         );
+
+        // Canlı Çift Yönlü Eşitleme: Bilgisayardan gelen ekleme/güncelleme/silme işlemlerini dinle
+        webConnectService.startListeningForDesktopUpdates(
+          webPayload.sessionId,
+          webPayload.keyHex,
+          async (actionData) => {
+            try {
+              if (actionData.action === 'ADD_ENTRY') {
+                const created = await kdbxService.addEntry(actionData.entry);
+                setVaultState((prev) => ({
+                  ...prev,
+                  entries: [created, ...prev.entries.filter((e) => e.id !== created.id)],
+                }));
+                triggerHaptic('success');
+                showToast(`"${actionData.entry.title}" bilgisayardan eklendi!`);
+              } else if (actionData.action === 'UPDATE_ENTRY') {
+                await kdbxService.updateEntry(actionData.entry.id, actionData.entry);
+                setVaultState((prev) => ({
+                  ...prev,
+                  entries: prev.entries.map((e) => (e.id === actionData.entry.id ? { ...e, ...actionData.entry } : e)),
+                }));
+                triggerHaptic('medium');
+                showToast(`"${actionData.entry.title}" bilgisayardan güncellendi!`);
+              } else if (actionData.action === 'DELETE_ENTRY') {
+                await kdbxService.deleteEntry(actionData.entry.id);
+                setVaultState((prev) => ({
+                  ...prev,
+                  entries: prev.entries.filter((e) => e.id !== actionData.entry.id),
+                }));
+                triggerHaptic('error');
+                showToast(`"${actionData.entry.title}" bilgisayardan silindi!`);
+              }
+            } catch (syncErr) {
+              console.error('Error applying desktop sync to mobile:', syncErr);
+            }
+          }
+        );
+
         triggerHaptic('success');
         showToast('Bilgisayara bağlandı! Şifreleriniz tarayıcıda açıldı.');
       } catch (err: unknown) {
